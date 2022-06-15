@@ -1,0 +1,1 @@
+from global_service.service import *

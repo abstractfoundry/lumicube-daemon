@@ -1,0 +1,2605 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Abstract Foundry</title>
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+    >
+    <link rel="stylesheet" href="/resources/bootstrap/4.3.1/bootstrap.min.css">
+    <style type="text/css">
+        @font-face {
+            font-family: 'Cantarell';
+            font-weight: 100;
+            src: url('/resources/fonts/Cantarell-Thin.WOFF') format('woff');
+        }
+        @font-face {
+            font-family: 'Cantarell';
+            font-weight: 300;
+            src: url('/resources/fonts/Cantarell-Light.WOFF') format('woff');
+        }
+        @font-face {
+            font-family: 'Cantarell';
+            font-weight: 400;
+            src: url('/resources/fonts/Cantarell-Regular.WOFF') format('woff');
+        }
+        @font-face {
+            font-family: 'Cantarell';
+            font-weight: 700;
+            src: url('/resources/fonts/Cantarell-Bold.WOFF') format('woff');
+        }
+        @font-face {
+            font-family: 'Cantarell';
+            font-weight: 800;
+            src: url('/resources/fonts/Cantarell-ExtraBold.WOFF') format('woff');
+        }
+        body {
+            font-family: 'Cantarell';
+        }
+    </style>
+</head>
+<body>
+    <div id="body-container"></div>
+     <!--TODO: Upgrade react-bootstrap to non-beta version -->
+     <!--TODO: Switch to production version of immer -->
+    <script src="/resources/react/16.9.0/react.production.min.js"></script>
+    <script src="/resources/react/16.9.0/react-dom.production.min.js"></script>
+    <script src="/resources/react-bootstrap/1.0.0-beta.12/react-bootstrap.min.js"></script>
+    <script src="/resources/immer/6.0.2/immer.umd.development.js"></script>
+    <script src="/resources/chartjs/2.9.3/Chart.bundle.min.js"></script>
+    <script src="/resources/ace/1.4.6/src-min-noconflict/ace.js"></script>
+    <script>
+        unsaved = false;
+
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { error: null };
+            }
+            static getDerivedStateFromError(error) {
+                return { error };
+            }
+            render() {
+                if (this.state.error !== null) {
+                    return React.createElement(
+                        ReactBootstrap.Alert, { variant: 'primary', className: 'my-3' },
+                        React.createElement(
+                            ReactBootstrap.Alert.Heading, {},
+                            'Something went wrong!'
+                        ),
+                        React.createElement(
+                            'p', {},
+                            'An error occured whilst displaying the page, click reload to try again.'
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Button, { onClick: () => window.location.reload(true) },
+                            'Reload'
+                        )
+                    );
+                } else {
+                    return this.props.children;
+                }
+            }
+        }
+
+        class NavigationBar extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = {};
+            }
+            render() {
+                return React.createElement(
+                    ReactBootstrap.Navbar, {
+                        expand: 'md',
+                        variant: 'dark',
+                        style: { 'background': '#de3c3c' }
+                    },
+                    React.createElement(
+                        ReactBootstrap.Container, {},
+                        React.createElement(
+                            ReactBootstrap.Navbar.Brand, { href: '/' },
+                            React.createElement(
+                                'img', {
+                                    src: '/resources/branding/alpha/logo.svg',
+                                    style: { 'width': '15rem', 'height': '3.3333rem' }
+                                }
+                            )
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Navbar.Toggle, {
+                                style: { 'border': 'none', 'outline': 'none', 'padding': 0 }
+                            }
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Navbar.Collapse, {},
+                            React.createElement(
+                                ReactBootstrap.Nav, {
+                                    activeKey: this.props.active_key,
+                                    className: 'ml-auto'
+                                },
+                                // React.createElement(
+                                //     ReactBootstrap.Nav.Item, {},
+                                //     React.createElement(
+                                //         ReactBootstrap.Nav.Link, {
+                                //             href: '/',
+                                //             eventKey: 'dashboard'
+                                //         }, 'Dashboard')
+                                // )
+//                              React.createElement(
+//                                  ReactBootstrap.Nav.Item, {},
+//                                  React.createElement(
+//                                      ReactBootstrap.Nav.Link, {
+//                                          href: '/api/v1/',
+//                                          eventKey: 'about'
+//                                      }, 'API')
+//                              )
+                            )
+                        )
+                    )
+                );
+            }
+        }
+
+        class TimeSeriesView extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = {};
+                this._node = null;
+                this._instance = null;
+            }
+            componentDidUpdate() {
+                if (this._instance && !this.props.hidden) {
+                    let modified = false;
+                    const dataset = this._instance.data.datasets[0].data;
+                    const indices_to_remove = []; // Populated
+                    const timestamps_to_add = {}; // Depopulated
+                    for (const timestamp in this.props.data) {
+                        timestamps_to_add[timestamp] = timestamp;
+                    }
+                    for (let index = 0; index < dataset.length; index++) {
+                        const datum = dataset[index];
+                        const timestamp = datum.t;
+                        if (!(timestamp in this.props.data)) {
+                            indices_to_remove.push(index);
+                        } else {
+                            delete timestamps_to_add[timestamp];
+                            const old_value = datum.y;
+                            const new_value = this.props.data[timestamp];
+                            if (old_value !== new_value) {
+                                datum.y = new_value;
+                                modified = true;
+                            }
+                        }
+                    }
+                    indices_to_remove.reverse(); // Remove in reverse order so indices don't become offset after each removal
+                    for (const index of indices_to_remove) {
+                        dataset.splice(index, 1);
+                        modified = true;
+                    }
+                    for (const timestamp_string in timestamps_to_add) {
+                        const timestamp = Number(timestamp_string);
+                        const value = this.props.data[timestamp_string];
+                        dataset.push(
+                            { t: timestamp, y: value }
+                        );
+                        modified = true;
+                    }
+                    if (modified) {
+                        this._instance.update();
+                    }
+                }
+            }
+            componentDidMount() {
+                const data = [];
+                for (const timestamp_string in this.props.data) {
+                     // Note: Timestamp = Milliseconds since Unix epoch
+                    const timestamp = Number(timestamp_string);
+                    const value = this.props.data[timestamp_string];
+                    data.push(
+                        { t: timestamp, y: value }
+                    );
+                }
+                this._instance = new Chart(this._node.getContext('2d'),
+                    {
+                        type: 'line',
+                        data: {
+                            datasets: [{
+                                data: data,
+                                fill: false,
+                                borderColor: '#a0a0a0',
+                                borderWidth: 2,
+                                pointRadius: 2.5,
+                                showLine: true
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                xAxes: [{ type: 'time', ticks: { maxTicksLimit: 10 } }],
+                                yAxes: [{ scaleLabel: {
+                                    display: true,
+                                    labelString: this.props.label
+                                } }]
+                            },
+                            legend: {
+                                display: false
+                            },
+                            animation: {
+                                duration: 200 // 0
+                            },
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            tooltips: {
+                                intersect: false,
+                                mode: 'index'
+                            }
+                        }
+                    }
+                );
+            }
+            componentWillUnmount() {
+                if (this._instance) {
+                    this._instance.destroy();
+                }
+            }
+            render() {
+                // We use 'ref' to capture the underlying DOM element
+                return React.createElement(
+                    'div', { style: { 'position': 'relative', 'height': '20rem' } },
+                    React.createElement(
+                        'canvas', {
+                            ref: node => this._node = node,
+                            style: { 'user-select': 'none' }
+                        }
+                    )
+                );
+            }
+        }
+
+        class Modules extends React.Component {
+            render() {
+                const cards = [];
+                const modules = this.props.modules;
+                const documentation = this.props.documentation;
+                for (const module_name of modules.connected_modules) {
+                    const content = [];
+                    const groups = [];
+                    for (const method_signature of Object.keys(documentation.methods)) {
+                        if (method_signature.startsWith(module_name + '.')) {
+                            const help_visible = modules.visible_help[method_signature] === true;
+                            groups.push(
+                                React.createElement(
+                                    ReactBootstrap.Form.Group, { as: ReactBootstrap.Row },
+                                    React.createElement(
+                                        ReactBootstrap.Col, { md: 12, lg: 12 },
+                                        React.createElement(
+                                            ReactBootstrap.InputGroup, { className: 'mb-3' },
+                                            React.createElement(
+                                                ReactBootstrap.DropdownButton, {
+                                                    as: ReactBootstrap.InputGroup.Prepend,
+                                                    variant: 'secondary'
+                                                },
+                                                React.createElement(
+                                                    ReactBootstrap.Dropdown.Item, {
+                                                            onClick: () => modules.toggle_help(method_signature)
+                                                    }, help_visible ? 'Hide help' : 'Show help'
+                                                )
+                                            ),
+                                            React.createElement(
+                                                ReactBootstrap.Form.Control, {
+                                                    type: 'text',
+                                                    readOnly: true,
+                                                    value: documentation.methods[method_signature].match(/^[^\.]*\.([^\)]*\))/)[1],
+                                                    className: 'text-monospace',
+                                                    style: { 'font-size': '0.9rem', 'font-weight': 'bold' } //, 'background': 'rgb(250, 230, 250)' }
+                                                }
+                                            )
+                                        )
+                                    )
+                                )
+                            );
+                            groups.push(
+                                React.createElement(
+                                    ReactBootstrap.Collapse, { in: help_visible },
+                                    React.createElement(
+                                        'div', {}, // Note: This 'div' wrapper helps Bootstrap calculate the height of the element, to provide a smooth animation.
+                                        React.createElement(
+                                            ReactBootstrap.Form.Group, { as: ReactBootstrap.Row },
+                                            React.createElement(
+                                                ReactBootstrap.Col, {},
+                                                React.createElement(
+                                                    'p', {
+                                                        className: 'text-monospace small',
+                                                        style: { 'white-space': 'pre-wrap'}
+                                                    },
+                                                    documentation.methods[method_signature]
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            );
+                        }
+                    }
+                    if (module_name in modules.fields_latest) {
+                        const latest = modules.fields_latest[module_name];
+                        const order = modules.fields_order[module_name];
+                        const spanning = modules.spanning_fields[module_name];
+                        const nonpublic = modules.nonpublic_fields[module_name];
+                        for (const key of order.filter(key => (key in latest) && !spanning.includes(key) && !nonpublic.includes(key))) {
+                            const columns = [];
+                            const chart_visible = module_name in modules.visible_charts &&
+                                modules.visible_charts[module_name][key];
+                            const user_edited = module_name in modules.user_edited_field &&
+                                modules.user_edited_field[module_name][key];
+                            const set_field = function () {
+                                fetch('/api/v1/modules/' + module_name +'/methods/set_fields',
+                                    {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify(
+                                            { 'arguments': [{ [key]: latest[key] }] }
+                                        ) + '\r\n\r\n'
+                                    }
+                                ).then(
+                                    () => {
+                                        modules.edit_field(module_name, key, null);
+                                        modules.unlock_edit_field(module_name, key);
+                                    }
+                                );
+                            };
+                            columns.push(
+                                React.createElement(
+                                    ReactBootstrap.Col, {},
+                                    React.createElement(
+                                        ReactBootstrap.InputGroup, { className: 'mb-3' },
+                                        React.createElement(
+                                            ReactBootstrap.DropdownButton, {
+                                                as: ReactBootstrap.InputGroup.Prepend,
+                                                variant: 'secondary'
+                                            },
+                                            React.createElement(
+                                                ReactBootstrap.Dropdown.Item, {
+                                                    onClick: () => modules.toggle_chart(module_name, key)
+                                                }, chart_visible ? 'Hide chart' : 'Show chart'
+                                            )
+//                                            React.createElement(
+//                                                ReactBootstrap.Dropdown.Item, {
+//                                                    // TODO: href: modules.export_data_link(module_name, key)
+//                                                }, 'Export data'
+//                                            ),
+//                                            React.createElement(
+//                                                ReactBootstrap.Dropdown.Item, {
+//                                                    // TODO: onClick: () => modules.add_to_script(module_name, key)
+//                                                }, 'Add to script'
+//                                            ),
+//                                            React.createElement(
+//                                                ReactBootstrap.Dropdown.Item, {}, 'Settings' // TODO
+//                                            ),
+//                                            React.createElement(
+//                                                ReactBootstrap.Dropdown.Item, {}, 'Help' // TODO
+//                                            )
+                                        ),
+                                        React.createElement(
+                                            ReactBootstrap.Form.Control, {
+                                                type: 'text',
+                                                readOnly: true,
+                                                value: key,
+                                                className: 'text-monospace text-md-right',
+                                                style: { 'font-size': '0.9rem' } //, 'background': 'rgb(230, 250, 250)' }
+                                            }
+                                        )
+                                    )
+                                )
+                            );
+                            columns.push(
+                                React.createElement(
+                                    ReactBootstrap.Col, {},
+                                    React.createElement(
+                                        ReactBootstrap.InputGroup, {},
+                                        ...[React.createElement(
+                                            ReactBootstrap.Form.Control, {
+                                                variant: user_edited ? 'outline-warning' : 'outline-secondary',
+                                                type: 'text',
+                                                value: latest[key] !== null && latest[key] !== undefined ? latest[key].toString() : '',
+                                                className: 'text-monospace',
+                                                style: { 'font-size': '0.9rem' }, //, 'background': 'rgb(230, 250, 250)' },
+                                                onChange: event => modules.edit_field(module_name, key, event.target.value),
+                                                onKeyPress: event => {
+                                                    if (event.charCode === 13) {
+                                                        set_field();
+                                                    }
+                                                }
+                                            }
+                                        )].concat(user_edited ? [
+                                            React.createElement(
+                                                ReactBootstrap.InputGroup.Append, {},
+                                                    React.createElement(
+                                                        ReactBootstrap.Button, {
+                                                            variant: 'outline-secondary',
+                                                            onClick: () => {
+                                                                modules.edit_field(module_name, key, null);
+                                                                modules.unlock_edit_field(module_name, key);
+                                                            }
+                                                        }, 'Cancel'
+                                                    ),
+                                                    React.createElement(
+                                                        ReactBootstrap.Button, {
+                                                            variant: 'outline-secondary',
+                                                            onClick: () => set_field()
+                                                        }, 'Set'
+                                                    )
+                                            )
+                                        ] : []),
+                                    )
+                                )
+                            );
+                            groups.push(
+                                React.createElement(
+                                    ReactBootstrap.Form.Group, { as: ReactBootstrap.Row },
+                                    columns
+                                )
+                            );
+                            const data = {};
+                            if (module_name in modules.fields_timeseries) {
+                                const dictionary = modules.fields_timeseries[module_name];
+                                if (dictionary !== null && key in dictionary) {
+                                    const timeseries = dictionary[key];
+                                    if (timeseries !== null) {
+                                        for (const entry of timeseries) {
+                                            data[entry.timestamp] = entry.value;
+                                        }
+                                    }
+                                }
+                            }
+                            groups.push(
+                                React.createElement(
+                                    ReactBootstrap.Collapse, { in: chart_visible },
+                                    React.createElement(
+                                        'div', {}, // Note: This 'div' wrapper helps Bootstrap calculate the height of the element, to provide a smooth animation.
+                                        React.createElement(
+                                            ReactBootstrap.Form.Group, { as: ReactBootstrap.Row },
+                                            React.createElement(
+                                                ReactBootstrap.Col, {},
+                                                React.createElement(
+                                                    TimeSeriesView, {
+                                                        data: data,
+                                                        label: key,
+                                                        hidden: !chart_visible
+                                                    }
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            );
+                        }
+                    }
+                    content.push(
+                        React.createElement(ReactBootstrap.Form, {}, groups)
+                    );
+                    cards.push(
+                        React.createElement(
+                            ReactBootstrap.Card, { className: 'mb-4' },
+                            React.createElement(
+                                ReactBootstrap.Card.Header, {
+                                    as: 'h5',
+                                    className: 'text-monospace',
+//                                    style: {
+//                                        'position': 'relative',
+//                                        'padding-left': '2.75rem',
+//                                        'padding-right': '0.5rem',
+//                                        'font-size': '1.1rem'
+//                                    }
+                                },
+                                module_name,
+//                                React.createElement(
+//                                    ReactBootstrap.Button, { // TODO: Expand hidden settings section
+//                                        variant: 'secondary',
+//                                        size: 'sm',
+//                                        style: {
+//                                            'position': 'absolute',
+//                                            'top': '0',
+//                                            'left': '0',
+//                                            'height': '100%',
+//                                            'border-bottom-left-radius': '0',
+//                                            'border-bottom-right-radius': '0',
+//                                            'border-top-right-radius': '0',
+//                                            'margin': '0',
+//                                            'padding': '0rem 0.25rem',
+//                                            'font-size': '1.5rem'
+//                                        }
+//                                    }, '⋮'
+//                                )
+                            ),
+                            React.createElement(
+                                ReactBootstrap.Card.Body, {},
+                                ...content
+                            )
+                        )
+                    );
+                }
+                return React.createElement(
+                    React.Fragment, {},
+                    cards.length > 0
+                        ? cards
+                        : React.createElement(
+                            'div', { className: 'text-center' },
+                            React.createElement(
+                                ReactBootstrap.Spinner, { animation: 'border' }
+                            ),
+                            React.createElement(
+                                ReactBootstrap.Collapse, { in: this.props.settled },
+                                React.createElement(
+                                    'div', {}, // Note: This 'div' wrapper helps Bootstrap calculate the height of the element, to provide a smooth animation.
+                                    React.createElement(
+                                        'p', { className: 'text-muted mt-3' },
+                                        'Nothing showing? ',
+                                        React.createElement('a', { href: 'https://www.abstractfoundry.com/lumicube/resources' }, 'Check out our tutorials'),
+                                        '.'
+                                    )
+                                )
+                            )
+                        )
+                );
+            }
+        }
+
+        class AceEditor extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = {};
+                this._node = null;
+                this._instance = null;
+                this._refreshing = false;
+            }
+            componentDidUpdate() {
+                if (this._instance) {
+                    let value = this._instance.getValue();
+                    if (this.props.value !== value) {
+                        this._refreshing = true;
+                        // Preserve the current cursor/selection
+                        let selection = this._instance.session.selection.toJSON();
+                        this._instance.setValue(this.props.value);
+                        this._instance.session.selection.fromJSON(selection);
+                        this._refreshCursorAndSelection();
+                        this._refreshing = false;
+                    }
+                }
+            }
+            componentDidMount() {
+                //ace.config.set('basePath', ...);
+                this._instance = ace.edit(this._node,
+                    {
+                        value: this.props.value,
+                        mode: this.props.mode,
+                        theme: this.props.theme,
+                        minLines: this.props.minLines,
+                        maxLines: this.props.maxLines,
+                        readOnly: this.props.readOnly,
+                        showPrintMargin: false
+                    }
+                );
+                this._instance.on('change',
+                    () => {
+                        if (!this._refreshing) {
+                            let value = this._instance.getValue();
+                            if (this.props.value !== value) {
+                                this.props.onChange(value);
+                            }
+                        }
+                    }
+                );
+                this._instance.on('changeSelection',
+                    () => {
+                        if (!this._refreshing) {
+                            this.props.onSelectionChange(this._instance.session);
+                        }
+                    }
+                );
+                this._refreshCursorAndSelection();
+            }
+            componentWillUnmount() {
+                if (this._instance) {
+                    this._instance.container.remove();
+                    this._instance.destroy();
+                }
+            }
+            render() {
+                // Use 'ref' to capture the underlying DOM element
+                return React.createElement(
+                    'div', { ref: node => this._node = node }
+                );
+            }
+            _refreshCursorAndSelection() {
+                if (this._instance) {
+                    if (this.props.pinEnd) {
+                        this._instance.navigateFileEnd();
+                        this._instance.scrollToRow(
+                            this._instance.getSelection().getSelectionLead().row
+                        );
+                    }
+                }
+            }
+        }
+
+        AceEditor.defaultProps = {
+            value: '',
+            mode: null,
+            theme: null,
+            minLines: 20,
+            maxLines: 60,
+            readOnly: false,
+            onChange: () => null,
+            onSelectionChange: session => null,
+            pinEnd: false
+        };
+
+        class Scripts extends React.Component {
+            render() {
+                return React.createElement(
+                    React.Fragment, {},
+                    React.createElement(
+                        ReactBootstrap.Card, {},
+                        React.createElement(
+                            ReactBootstrap.Card.Header, {
+                                as: 'h5',
+                                className: 'text-monospace',
+//                                style: {
+//                                    'position': 'relative',
+//                                    'padding-left': '2.75rem',
+//                                    'padding-right': '0.5rem'
+//                                }
+                            },
+                            'main',
+//                            React.createElement(
+//                                ReactBootstrap.Button, { // TODO: Expand hidden settings section
+//                                    variant: 'secondary',
+//                                    size: 'sm',
+//                                    style: {
+//                                        'position': 'absolute',
+//                                        'top': '0',
+//                                        'left': '0',
+//                                        'height': '100%',
+//                                        'border-bottom-left-radius': '0',
+//                                        'border-bottom-right-radius': '0',
+//                                        'border-top-right-radius': '0',
+//                                        'margin': '0',
+//                                        'padding': '0rem 0.25rem',
+//                                        'font-size': '1.5rem'
+//                                    }
+//                                }, '⋮'
+//                            )
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Card.Body, { style: { 'padding': 0 } },
+                            React.createElement(
+                                AceEditor, {
+                                    value: this.props.scripts.main_body,
+                                    mode: 'ace/mode/python',
+                                    theme: 'ace/theme/github',
+                                    onChange: value => {
+                                        unsaved = true;
+                                        this.props.scripts.update_main_body(value, false);
+                                    },
+                                    onSelectionChange: session => {
+                                        let cursor = session.selection.cursor;
+                                        let line = session.getLine(cursor.row);
+                                        let leader = line.substring(0, cursor.column + 1);
+                                        let context = leader
+                                            .split(/[^a-zA-Z0-9_\.]/)
+                                            .filter(member => member !== '')
+                                            .reverse();
+                                        for (let string of context) {
+                                            if (string in this.props.documentation.fields) {
+                                                let advisor_update = this.props.documentation.fields[string];
+                                                this.props.advice.update_advisor_string(advisor_update);
+                                                return;
+                                            } else if (string in this.props.documentation.methods) {
+                                                let advisor_update = this.props.documentation.methods[string];
+                                                this.props.advice.update_advisor_string(advisor_update);
+                                                return;
+                                            } else {
+                                                let parts = string.split('.');
+                                                let prefix = parts[0];
+                                                if (prefix in this.props.documentation.objects) {
+                                                    let advisor_update = this.props.documentation.objects[prefix];
+                                                    this.props.advice.update_advisor_string(advisor_update);
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                        this.props.advice.update_advisor_string(null);
+                                    }
+                                }
+                            )
+                        )
+                    ),
+                    React.createElement(
+                        'div', {
+                            className: 'text-right'
+                        },
+                        React.createElement(
+                            ReactBootstrap.Dropdown, {
+                                className: 'd-inline-block'
+                            },
+                            React.createElement(
+                                ReactBootstrap.Dropdown.Toggle, {
+                                    variant: 'secondary',
+                                    className: 'mt-3 ml-3'
+                                },
+                                'Projects'
+                            ),
+                            React.createElement(
+                                ReactBootstrap.Dropdown.Menu, {},
+                                React.createElement(
+                                    ReactBootstrap.Dropdown.Item, {},
+                                    React.createElement('b', {}, 'Beginner Projects')
+                                ),
+                                ...Object.keys(beginnerProjects).map(projectName =>
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_main_body(beginnerProjects[projectName]) }, projectName)
+                                ),
+                                React.createElement(
+                                    ReactBootstrap.Dropdown.Item, {},
+                                    React.createElement('b', {}, 'Advanced Projects')
+                                ),
+                                ...Object.keys(advancedProjects).map(projectName =>
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_main_body(advancedProjects[projectName]) }, projectName)
+                                )
+                            )
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Button, {
+                                variant: 'primary',
+                                className: 'mt-3 ml-3',
+                                onClick: () => {
+                                    fetch('/api/v1/scripts/main',
+                                        {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify(
+                                                { 'body': this.props.scripts.main_body }
+                                            ) + '\r\n\r\n'
+                                        }
+                                    ).then(
+                                        () => unsaved = false
+                                    );
+                                }
+                            },
+                            'Save'
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Button, {
+                                variant: 'danger',
+                                className: 'mt-3 ml-3',
+                                onClick: () => {
+                                    fetch('/api/v1/scripts/main/methods/stop',
+                                        {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify(
+                                                {}
+                                            ) + '\r\n\r\n'
+                                        }
+                                    );
+                                }
+                            },
+                            'Stop'
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Button, {
+                                variant: 'success',
+                                className: 'mt-3 ml-3',
+                                onClick: () => {
+                                    fetch('/api/v1/scripts/main/methods/start',
+                                        {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify(
+                                                { 'body': this.props.scripts.main_body }
+                                            ) + '\r\n\r\n'
+                                        }
+                                    ).then(
+                                        () => unsaved = false
+                                    );
+                                }
+                            },
+                            'Start'
+                        )
+                    ),
+                    React.createElement(
+                        ReactBootstrap.Card, {
+                            className: 'mt-3',
+                        },
+                        React.createElement(
+                            ReactBootstrap.Card.Header, {
+                                as: 'h5',
+                                style: {
+                                    'position': 'relative',
+                                    'padding-left': '2.75rem',
+                                    'padding-right': '0.5rem'
+                                }
+                            },
+                            'Advisor',
+                            React.createElement(
+                                ReactBootstrap.Button, {
+                                    variant: 'secondary',
+                                    size: 'sm',
+                                    onClick: this.props.toggle_advisor,
+                                    style: {
+                                        'position': 'absolute',
+                                        'top': '0',
+                                        'left': '0',
+                                        'height': '100%',
+                                        'border-bottom-left-radius': '0',
+                                        'border-bottom-right-radius': '0',
+                                        'border-top-right-radius': '0',
+                                        'margin': '0',
+                                        'padding': '0rem 0.25rem',
+                                        'font-size': '1.5rem'
+                                    }
+                                }, this.props.expand_advisor ? '●' : '○'
+                            )
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Collapse, { in: this.props.expand_advisor },
+                            React.createElement(
+                                'div', {}, // Note: This 'div' wrapper helps Bootstrap calculate the height of the element, to provide a smooth animation.
+                                React.createElement(
+                                    ReactBootstrap.Card.Body, {},
+                                    React.createElement(
+                                        ReactBootstrap.Card.Text, {
+                                            className: 'text-monospace small',
+                                            style: { 'white-space': 'pre-wrap'}
+                                        },
+                                        this.props.advice.advisor_string !== null
+                                            ? this.props.advice.advisor_string
+                                            : 'There are ' + this.props.modules.connected_modules.length + ' modules connected: ' + this.props.modules.connected_modules.join(', ')
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    React.createElement(
+                        ReactBootstrap.Collapse, { in: this.props.upgrade_available },
+                        React.createElement(
+                            'div', {}, // Note: This 'div' wrapper helps Bootstrap calculate the height of the element, to provide a smooth animation.
+                            React.createElement( // TODO: Move into separate component.
+                                ReactBootstrap.Card, {
+                                    className: 'mt-3',
+                                },
+                                React.createElement(
+                                    ReactBootstrap.Card.Header, {
+                                        as: 'h5',
+                                    },
+                                    'Update',
+                                ),
+                                React.createElement(
+                                    ReactBootstrap.Card.Body, {},
+                                    React.createElement(
+                                        ReactBootstrap.Form, { 'action': '/api/v1/tools/upgrade', enctype: 'multipart/form-data', method: 'POST' },
+                                            React.createElement('p', {}, 'A software update is available.'),
+                                            React.createElement(
+                                                'div', { className: 'text-right' },
+                                                React.createElement(ReactBootstrap.Button, { type: 'submit', variant: 'warning' }, 'Update')
+                                            )
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    React.createElement(
+                        ReactBootstrap.Card, {
+                            className: 'mt-3',
+                        },
+                        React.createElement(
+                            ReactBootstrap.Card.Header, {
+                                as: 'h5',
+                            },
+                            'Console',
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Card.Body, { style: { 'padding': 0 } },
+                            React.createElement(
+                                AceEditor, {
+                                    value: this.props.python_log,
+                                    readOnly: true,
+                                    pinEnd: true
+                                }
+                            )
+                        )
+                    ),
+                    React.createElement( // TODO: Move into separate component.
+                        ReactBootstrap.Card, {
+                            className: 'mt-3',
+                        },
+                        React.createElement(
+                            ReactBootstrap.Card.Header, {
+                                as: 'h5',
+                            },
+                            'Upload',
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Card.Body, {},
+                            React.createElement(
+                                ReactBootstrap.Form, { 'action': '/api/v1/files/upload', enctype: 'multipart/form-data', method: 'POST' },
+                                    React.createElement(
+                                        ReactBootstrap.Form.Group, {},
+                                        React.createElement(ReactBootstrap.Form.Control, { type: 'file', 'name': 'file' })
+                                    ),
+                                    React.createElement(
+                                        'div', { className: 'text-right' },
+                                        React.createElement(ReactBootstrap.Button, { type: 'submit' }, 'Upload')
+                                    )
+                            )
+                        )
+                    )
+                );
+            }
+        }
+
+        class Dashboard extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = {
+                    modules: {
+                        connected_modules: [],
+                        fields_latest: {}, // module_name -> (field_key -> field_value)
+                        fields_timeseries: {}, // module_name -> (field_key -> [{timestamp, value}])
+                        fields_order: {}, // module_name -> [field_key, ...]
+                        spanning_fields: {}, // module_name -> [field_key, ...]
+                        nonpublic_fields: {}, // module_name -> [field_key, ...]
+                        visible_charts: {}, // module_name -> (field_key -> boolean)
+                        visible_help: {}, // module_name + '.' + field_key/method_name -> boolean
+                        user_edited_field: {}, // module_name -> (field_key -> boolean)
+                        toggle_chart: (module_name, field_key) => this.transformState(
+                            draft => {
+                                if (!(module_name in draft.modules.visible_charts)) {
+                                    draft.modules.visible_charts[module_name] = {};
+                                }
+                                const visible = draft.modules.visible_charts[module_name][field_key] === true;
+                                draft.modules.visible_charts[module_name][field_key] =
+                                    visible ? false : true;
+                            }
+                        ),
+                        toggle_help: signature => this.transformState(
+                            draft => {
+                                const visible = draft.modules.visible_help[signature] === true;
+                                draft.modules.visible_help[signature] =
+                                    visible ? false : true;
+                            }
+                        ),
+                        export_data_link: (module_name, field_key) =>
+                            '/api/v1/modules/' + module_name + '/timeseries?format=csv',
+                        add_to_script:  (module_name, field_key) => this.transformState(
+                            draft => { /* TODO */ }
+                        ),
+                        edit_field: (module_name, field_key, field_value) => this.transformState(
+                            draft => {
+                                if (!(module_name in draft.modules.user_edited_field)) {
+                                    draft.modules.user_edited_field[module_name] = {};
+                                }
+                                draft.modules.user_edited_field[module_name][field_key] = true;
+                                draft.modules.fields_latest[module_name][field_key] = field_value;
+                            }
+                        ),
+                        unlock_edit_field: (module_name, field_key) => this.transformState(
+                            draft => {
+                                if (!(module_name in draft.modules.user_edited_field)) {
+                                    draft.modules.user_edited_field[module_name] = {};
+                                }
+                                draft.modules.user_edited_field[module_name][field_key] = false;
+                            }
+                        )
+                    },
+                    scripts: {
+                        main_body: '',
+                        update_main_body: (body, check = true) => {
+                            let update = false;
+                            if (check) {
+                                let overwritten = this.state.scripts.main_body;
+                                let safe = overwritten.trim().length === 0 ||
+                                    Object.values(beginnerProjects).includes(overwritten) ||
+                                    Object.values(advancedProjects).includes(overwritten); // TODO: Do this check in a less hacky way
+                                update = safe || window.confirm("Loading this project will overwrite your current script.");
+                            } else {
+                                update = true;
+                            }
+                            if (update) {
+                                this.transformState(
+                                    draft => { draft.scripts.main_body = body; }
+                                );
+                            }
+                        }
+                    },
+                    python_log: '',
+                    upgrade_available: false,
+                    advice: {
+                        advisor_string: null,
+                        update_advisor_string: text => this.transformState(
+                            draft => { draft.advice.advisor_string = text; }
+                        )
+                    },
+                    expand_advisor: true,
+                    toggle_advisor: () => this.transformState(
+                        draft => {
+                            const expanded = draft.expand_advisor === true;
+                            draft.expand_advisor = expanded ? false : true;
+                        }
+                    ),
+                    settled: false,
+                    documentation: {
+                        objects: {
+
+// display
+                            'display': `Module: display
+
+Example: display.brightness = 40
+
+Fields:  brightness
+
+Methods: set_all(colour)
+         set_led(x, y, colour)
+         set_leds(x_y_to_colour_dict)
+         set_3d(x_y_z_to_colour_dict)
+         set_panel(panel, 2d_colour_list)
+         scroll_text(text, colour=white, background_colour=black, speed=1)`,
+
+// speaker
+                            'speaker': `Module: speaker
+
+Example: speaker.say("Hello world")
+
+Fields:  volume
+
+Methods: play(file)
+         stop()
+         say(text)
+         tone(frequency=261.626, duration=0.5, volume=0.25, function=sine_wave)`,
+
+// microphone
+                            'microphone': `Module: microphone
+
+Example: microphone.wait_for_sentence(60)
+
+Methods: start_recording(file)
+         stop_recording()
+         start_voice_recognition()
+         wait_for_sentence(timeout)
+         stop_voice_recognition()`,
+
+// buttons
+                            'buttons': `Module: buttons
+
+Example: print(buttons.top_pressed_count)
+
+Fields:  top_pressed
+         top_pressed_count
+         middle_pressed
+         middle_pressed_count
+         bottom_pressed
+         bottom_pressed_count
+
+Methods: get_next_action(timeout)`,
+
+// screen
+                            'screen': `Module: screen
+
+Example: screen.draw_rectangle(20, 20, 280, 200, pink)
+
+Fields:  resolution_scaling
+
+Methods: set_pixel(x, y, colour)
+         set_pixels(x, y, width, height, pixels)
+         draw_rectangle(x, y, width, height, colour)
+         write_text(x, y, text, size, colour, background_colour)
+         draw_image(image, x=0, y=0, width=320, height=240)`,
+
+// light_sensor
+                            'light_sensor': `Module: light_sensor
+
+Example: print(light_sensor.ambient_light)
+
+Fields:  ambient_light
+         red
+         green
+         blue
+         last_gesture
+         num_gestures
+         within_proximity
+         num_times_within_proximity
+
+Methods: get_next_gesture(timeout)`,
+
+// env_sensor
+                            'env_sensor': `Module: env_sensor
+
+Example: print(env_sensor.humidity)
+
+Fields:  temperature
+         pressure
+         humidity`,
+
+// hsv_colour
+
+                            'hsv_colour': `Function: hsv_colour
+
+Example: hsv_colour(0.5, 1, 1)
+
+Description: Define a colour from its hue, saturation, and value.
+
+Parameters:
+    hue                    Floating-point number between 0 and 1
+    saturation             Floating-point number between 0 and 1
+    value                  Floating-point number between 0 and 1`
+                        },
+                        fields: {
+
+// brightness
+                            'display.brightness': `Field: display.brightness
+
+Example: display.brightness = 40
+
+Description: Controls the brightness of the LEDs.
+
+Value: Any integer between 0 and 100.`,
+
+// max_current
+                            'display.max_current': `Field: display.max_current
+
+Example: display.max_current = 2000
+
+Description: The maximum current allowed in milliamps. If the current used by
+             all the LEDs exceeds this value then the brightness is automatically
+             set to 5 to keep it within the limit.`,
+
+// estimated_current
+                            'display.estimated_current': `Field: display.estimated_current
+
+Description: The live estimated current in milliamps used by all the LEDs.`
+                        },
+                        methods: {
+
+// set_all
+                            'display.set_all': `Method: display.set_all(colour)
+
+Example: display.set_all(red)
+
+Description: Set the colour of all the LEDs.
+
+Parameters:
+    colour                 24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000`,
+    
+// set_led
+                            'display.set_led': `Method: display.set_led(x, y, colour)
+
+Example: display.set_led(0, 0, red)
+
+Description: Set a single LED to a colour using x and y coordinates.
+             The bottom left panel is described by:        x in range 0 to 7,  y in range 0 to 7
+             The bottom right panel is described by:       x in range 8 to 15, y in range 0 to 7
+             The top panel is described by:                x in range 0 to 7,  y in range 8 to 15
+             Coordinates outside this range will be ignored.
+             e.g.
+             display.set_led(0, 0, red)     would change the bottom left pixel to red
+             display.set_led(0, 15, yellow) would change the pixel in the back corner to yellow
+             display.set_led(15, 0, pink)   would change the bottom right pixel to pink
+             display.set_led(15, 15, pink)  would do nothing as it is out of range
+
+Parameters:
+    x                      x coordinate, range 0 to 15
+    y                      y coordinate, range 0 to 15
+    colour                 24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000`,
+
+// set_leds
+    
+                            'display.set_leds': `Method: display.set_leds(x_y_to_colour_dict)
+
+Example: display.set_leds({ (0,0): red, (7,7): white })
+
+Description: Set multiple LEDs all at once using x and y coordinates.
+             For more information see display.set_led.
+
+Parameters:
+    x_y_to_colour_dict     dictionary with (x, y) coordinates as keys and colours as values`,
+
+// set_3d
+
+                            'display.set_3d': `Method: display.set_3d(x_y_z_to_colour_dict)
+
+Example: display.set_3d({ (0,0,8): red, (7,8,7): green })
+
+Description: Set multiple LEDs to a colour using x, y and z coordinates.
+
+             y
+             |
+             |
+          _-\` \`-_
+     z _-\`       \`-_ x
+
+             The left panel is described by:  x, y when z = 8
+             The right panel is described by: y, z when x = 8
+             The top panel is described by:   x, z when y = 8
+             Coordinates outside this range will be ignored.
+
+Parameters:
+    x_y_z_to_colour_dict   dictionary with (x, y, z) as keys and colours as values`,
+
+// set_panel
+
+                            'display.set_panel': `Method: display.set_panel(panel, 2d_colour_list)
+
+Example: display.set_panel("top", [[red, red, red, red, red, red, red, red],
+                                   [red, red, red, red, red, red, red, red],
+                                   [red, red, red, red, red, red, red, red],
+                                   [red, red, red, red, red, red, red, red],
+                                   [red, red, red, red, red, red, red, red],
+                                   [red, red, red, red, red, red, red, red],
+                                   [red, red, red, red, red, red, red, red],
+                                   [red, red, red, red, red, red, red, red]])
+
+Description: Set all the LEDs on one panel.
+             Takes 8 lists each containing 8 colours.
+             The first list is the top row of LEDs.
+             The first colour in that list is the top left LED colour.
+
+Parameters:
+    panel                  panel name, either "top", "left" or "right"
+    2d_colour_list         8 by 8 list of list of colours`,
+
+// scroll_text
+
+                            'display.scroll_text': `Method: display.scroll_text(text, colour=white, background_colour=black, speed=1)
+
+Example: display.scroll_text("Hello world", green)
+
+Description: Display text on the LEDs scrolling from right to left.
+
+Parameters:
+    text                   string
+    colour                 24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000
+    background_colour      24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000
+    speed                  floating-point value`,
+
+// screen.set_pixel
+
+                            'screen.set_pixel': `Method: screen.set_pixel(x, y, colour)
+
+Example: screen.set_pixel(10, 50, red)
+
+Description: Set the colour of a pixel given an x and y coordinate.
+
+Parameters:
+    x                      integer between 0 and 319
+    y                      integer between 0 and 239
+    colour                 24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000`,
+
+// screen.set_pixels
+
+                            'screen.set_pixels': `Method: screen.set_pixels(x, y, width, height, pixels)
+
+Example: screen.set_pixels(10, 50, 3, 2, [red, green, blue, cyan, magenta, yellow])
+
+Description: Set the colours of a rectangular region of pixels, from (x, y) to (x+width, y+height).
+             The length of the "pixels" list must be exactly width*height, and is read left to right,
+             top down.
+
+Parameters:
+    x                      integer between 0 and 319
+    y                      integer between 0 and 239
+    width                  integer between 0 and 320
+    height                 integer between 0 and 240
+    pixels                 list of 24-bit colours (length width*height)`,
+
+// screen.draw_rectangle
+
+                            'screen.draw_rectangle': `Method: screen.draw_rectangle(x, y, width, height, colour)
+
+Example: screen.draw_rectangle(0, 0, 320, 240, blue)
+
+Description: Draw a coloured rectangle starting at x and y coordinates.
+
+Parameters:
+    x                      integer between 0 and 319
+    y                      integer between 0 and 239
+    width                  integer between 0 and 320
+    height                 integer between 0 and 240
+    colour                 24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000`,
+
+// screen.write_text
+
+                            'screen.write_text': `Method: screen.write_text(x, y, text, size, colour, background_colour)
+
+Example: screen.write_text(0, 0, "Hello world", 1, black, white)
+
+Description: Write some text to the screen starting at x and y coordinates.
+
+Parameters:
+    x                      integer between 0 and 319
+    y                      integer between 0 and 239
+    text                   string
+    size                   integer representing the font size, must be greater than 0
+    colour                 24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000
+    background_colour      24-bit colour, e.g. black, red, hsv_colour(0.5, 1, 1), 0xFF0000`,
+
+// screen.draw_image
+
+                            'screen.draw_image': `Method: screen.draw_image(image, x, y, width, height)
+
+Example: screen.draw_image("autumn.jpg")
+
+Description: Draw an image to the screen, scaled to fit the rectangular region from (x, y) to (x+width, y+height).
+             Paths are taken relative to the desktop (or can be specified absolutely).
+
+Parameters:
+    image                  path to the image file
+    x                      integer between 0 and 319
+    y                      integer between 0 and 239
+    width                  integer between 0 and 320
+    height                 integer between 0 and 240`,
+
+// microphone.start_recording
+
+                            'microphone.start_recording': `Method: microphone.start_recording(file)
+
+Example: microphone.start_recording("noises.mp3")
+
+Description: Start recording microphone audio to the specified file. The file name must end in either ".wav"
+             or ".mp3". If a file already exists at the given path, it is replaced.
+
+Parameters:
+    file                   path to the output file (must end in ".wav" or ".mp3")`,
+
+// microphone.stop_recording
+
+                            'microphone.stop_recording': `Method: microphone.stop_recording()
+
+Example: microphone.stop_recording()
+
+Description: Stop a previously started recording.`,
+
+// microphone.start_voice_recognition
+
+                            'microphone.start_voice_recognition': `Method: microphone.start_voice_recognition()
+
+Example: microphone.start_voice_recognition()
+
+Description: Start the voice recognition service.`,
+
+// microphone.wait_for_sentence
+
+                            'microphone.wait_for_sentence': `Method: microphone.wait_for_sentence(timeout)
+
+Example: microphone.wait_for_sentence(60)
+
+Description: Wait some number of seconds for a sentence to be spoken and translated into text.
+             The sentence must be preceded by the wake word "Hey Mycroft".
+
+Parameters:
+    timeout                floating-point value specifying how many seconds to wait`,
+
+// microphone.stop_voice_recognition
+
+                            'microphone.stop_voice_recognition': `Method: microphone.stop_voice_recognition()
+
+Example: microphone.stop_voice_recognition()
+
+Description: Stop the voice recognition service.`,
+
+// microphone.start_recording_for_frequency_analysis
+
+                            'microphone.start_recording_for_frequency_analysis': `Method: microphone.start_recording_for_frequency_analysis()
+
+Example: microphone.start_recording_for_frequency_analysis()
+
+Description: Start recording audio for frequency analysis.`,
+
+// microphone.get_frequency_buckets
+
+                            'microphone.get_frequency_buckets': `Method: microphone.get_frequency_buckets(num_buckets=8, min_hz=0, max_hz=4000)
+
+Example: buckets = microphone.get_frequency_buckets(8, 0, 4000)
+         print(buckets)
+             {0.0: 284.0, 1000.0: 9823.1, 2000.0: 89234.4, 3000.0: 9823.1}
+
+Description: Process the audio data collected since the last call to get_frequency_buckets.
+             Returns a dictionary of frequencies mapped to magnitudes.
+
+Parameters:
+    num_buckets            the number of buckets to divide the frequencies amongst
+    min_hz                 the minimum frequency to process
+    max_hz                 the maximum frequency to process`,
+
+// speaker.play
+
+                            'speaker.play': `Method: speaker.play(path)
+
+Example: speaker.play("/home/pi/Desktop/some_file.mp3")
+
+Description: Play an audio file (non-absolute paths are taken relative to the Desktop directory).
+
+Parameters:
+    path                   string specifying the path to the audio file`,
+
+// speaker.stop
+
+                            'speaker.stop': `Method: speaker.stop()
+
+Example: speaker.stop()
+
+Description: Stops all currently playing audio files.`,
+
+// speaker.say
+
+                            'speaker.say': `Method: speaker.say(text)
+
+Example: speaker.say("Hello world")
+
+Description: Convert text to speech.
+
+Parameters:
+    text                   string`,
+
+// speaker.tone
+
+                            'speaker.tone': `Method: speaker.tone(frequency=261.626, duration=0.5, volume=0.25, function=sine_wave)
+
+Example: speaker.tone(400, 1, 0.1)
+
+Description: Play a tone of a certain frequency. 
+
+Parameters:
+    frequency              frequency in Hz
+    duration               time in seconds
+    volume                 number between 0.0 and 1.0 specifying the volume
+    function               sine_wave, square_wave, white_noise`,
+
+// buttons.get_next_action
+
+                            'buttons.get_next_action': `Method: buttons.get_next_action(timeout)
+
+Example: action = buttons.get_next_action(60)
+
+Description: Returns the next button pressed by the user, either "top", "middle", or "bottom".
+             If more than "timeout" seconds elapse before a button is pressed, None is returned.
+
+Parameters:
+    timeout                maximum time to wait in seconds`,
+
+// light_sensor.get_next_gesture
+
+                            'light_sensor.get_next_gesture': `Method: light_sensor.get_next_gesture(timeout)
+
+Example: gesture = light_sensor.get_next_gesture(60)
+
+Description: Returns the next gesture performed by the user, either "up", "down", "left" or "right".
+             If more than "timeout" seconds elapse before a gesture is performed, None is returned.
+
+Parameters:
+    timeout                maximum time to wait in seconds`,
+                        }
+                    }
+                };
+                this._timer = null;
+                setTimeout(
+                    () => this.setState(
+                        { settled: true }
+                    ),
+                    2000
+                );
+            }
+            scheduleOneShot() {
+                setTimeout(
+                    () => {
+                        this.oneShot();
+                    },
+                    0
+                );
+            }
+            oneShot() {
+                this.transformState(
+                    async (state) => {
+                        const main_script = await this.tryGet('/api/v1/scripts/main', 'json', { body: '' });
+                        return {main_script};
+                    },
+                    (draft, data) => {
+                        draft.scripts.main_body = data.main_script.body;
+                    }
+                );
+                this.transformState( // Note: Check for upgrades separately from fetching the main body, since it could take some time.
+                    async (state) => {
+                        const upgrade_available = await this.tryGet('/api/v1/tools/upgrade_available', 'json', false);
+                        return {upgrade_available};
+                    },
+                    (draft, data) => {
+                        draft.upgrade_available = data.upgrade_available;
+                    }
+                );
+            }
+            tryTick() {
+                try {
+                    this.tick();
+                } catch (exception) {
+                    console.warn('Error during tick:', exception);
+                }
+            }
+            scheduleTick() {
+                // Use setTimeout rather than setInterval to prevent tick overlap
+                this._timer = setTimeout(
+                    () => {
+                        this.tryTick();
+                        this.scheduleTick();
+                    },
+                    1000
+                );
+            }
+            startTimer() {
+                this.tryTick();
+                this.scheduleTick();
+            }
+            componentDidMount() {
+                this.scheduleOneShot();
+                this.startTimer();
+            }
+            componentWillUnmount() {
+                if (this._timer) {
+                    clearInterval(this._timer);
+                    this._timer = null;
+                }
+            }
+            transformState(informer_or_transformer, maybe_transformer) {
+                if (maybe_transformer !== undefined) {
+                    const informer = informer_or_transformer;
+                    const transformer = maybe_transformer;
+                    informer(this.state).then(
+                        data => this.setState(
+                            immer.produce(
+                                draft => transformer(draft, data)
+                            )
+                        )
+                    );
+                } else {
+                    const transformer = informer_or_transformer;
+                    this.setState(
+                        immer.produce(
+                            draft => transformer(draft)
+                        )
+                    );
+                }
+            }
+            async tryGet(url, format, fault) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw 'HTTP status code: ' + response.status.toString();
+                    }
+                    return await response[format]();
+                } catch (message) {
+                    console.warn('Fetch failed for "%s" (%s)', url, message);
+                }
+                return fault;
+            }
+            async tryGetAll(keys, key_to_url, format, fault) {
+                const count = keys.length;
+                const promises = [];
+                for (let index = 0; index < count; index++) {
+                    const key = keys[index];
+                    const url = key_to_url(key);
+                    promises.push(
+                        this.tryGet(url, format, fault)
+                    );
+                }
+                const values = await Promise.all(promises);
+                const result = {};
+                for (let index = 0; index < count; index++) {
+                    const key = keys[index];
+                    result[key] = values[index];
+                }
+                return result;
+            }
+            async tryPutJSON(url, json, fault) {
+                try {
+                    const response = await fetch(url,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(json) + '\r\n\r\n'
+                        }
+                    );
+                    if (!response.ok) {
+                        throw 'HTTP status code: ' + response.status.toString();
+                    }
+                    return await response.json();
+                } catch (message) {
+                    console.warn('Put failed for "%s" (%s)', url, message);
+                }
+                return fault;
+            }
+            tick() {
+                this.transformState(
+                    async (state) => {
+                        const modules = await this.tryGet('/api/v1/modules', 'json', { names: [] });
+                        const fields_latest = await this.tryGetAll(modules.names,
+                            module_name => '/api/v1/modules/' + module_name + '/fields?metadata=true',
+                            'json', { values: {} }
+                        );
+                        let timeseries_to_fetch = [];
+                        for (let module_name of modules.names) {
+                            if (module_name in state.modules.visible_charts) {
+                                for (let field_key in state.modules.visible_charts[module_name]) {
+                                    let chart_visible = state.modules.visible_charts[module_name][field_key];
+                                    if (chart_visible) {
+                                        timeseries_to_fetch.push([module_name, field_key]);
+                                    }
+                                }
+                            }
+                        }
+                        const fields_timeseries = await this.tryGetAll(timeseries_to_fetch,
+                            module_name_and_field_key => '/api/v1/modules/' + module_name_and_field_key[0] + '/fields/' + module_name_and_field_key[1] + '/timeseries',
+                            'json', {}
+                        );
+                        const python_log = await this.tryGet('/api/v1/scripts/main/log', 'json', { text: '' });
+                        return {modules, fields_latest, fields_timeseries, python_log};
+                    },
+                    (draft, data) => {
+                        const sorted_modules = data.modules.names.sort();
+                        const pruned_modules = []; // Sorted list of modules with at least some public non-spanning fields, i.e. worth displaying.
+                        for (const module_name of sorted_modules) {
+                            let worth_including = false;
+                            const order = draft.modules.fields_order[module_name];
+                            const spanning = draft.modules.spanning_fields[module_name];
+                            const nonpublic = draft.modules.nonpublic_fields[module_name];
+                            if (order !== undefined && spanning !== undefined && nonpublic !== undefined) {
+                                for (let key of order) {
+                                    if (worth_including) {
+                                        break;
+                                    } else if (!spanning.includes(key) && !nonpublic.includes(key)) {
+                                        worth_including = true;
+                                    }
+                                }
+                            }
+                            if (worth_including) {
+                                pruned_modules.push(module_name);
+                            }
+                        }
+                        draft.modules.connected_modules = pruned_modules;
+                        for (const module_name in data.fields_latest) {
+                            for (let field_key in data.fields_latest[module_name].values) {
+                                if (!(module_name in draft.modules.user_edited_field) || !draft.modules.user_edited_field[module_name][field_key]) {
+                                    if (!(module_name in draft.modules.fields_latest)) {
+                                        draft.modules.fields_latest[module_name] = {};
+                                    }
+                                    draft.modules.fields_latest[module_name][field_key] = data.fields_latest[module_name].values[field_key];
+                                }
+                            }
+                            if (data.fields_latest[module_name].metadata && Array.isArray(data.fields_latest[module_name].metadata.order)) {
+                                draft.modules.fields_order[module_name] = data.fields_latest[module_name].metadata.order;
+                            } else {
+                                draft.modules.fields_order[module_name] = Object.keys(data.fields_latest[module_name].values); // Fall back to random order
+                            }
+                            if (data.fields_latest[module_name].metadata && Array.isArray(data.fields_latest[module_name].metadata.spanning)) {
+                                draft.modules.spanning_fields[module_name] = data.fields_latest[module_name].metadata.spanning;
+                            } else {
+                                draft.modules.spanning_fields[module_name] = []; // By default assume no fields are spanning fields
+                            }
+                            if (data.fields_latest[module_name].metadata && Array.isArray(data.fields_latest[module_name].metadata.nonpublic)) {
+                                draft.modules.nonpublic_fields[module_name] = data.fields_latest[module_name].metadata.nonpublic;
+                            } else {
+                                draft.modules.nonpublic_fields[module_name] = []; // By default assume no fields are nonpublic fields
+                            }
+                        }
+                        for (const module_name_and_field_key in data.fields_timeseries) {
+                            if ('entries' in data.fields_timeseries[module_name_and_field_key]) {
+                                let split = module_name_and_field_key.split(',');
+                                let module_name = split[0];
+                                let field_key = split[1];
+                                if (!(module_name in draft.modules.fields_timeseries)) {
+                                    draft.modules.fields_timeseries[module_name] = {};
+                                }
+                                draft.modules.fields_timeseries[module_name][field_key] =
+                                    data.fields_timeseries[module_name_and_field_key].entries;
+                            }
+                        }
+                        draft.python_log = data.python_log.text;
+                    }
+                );
+            }
+            render() {
+                return React.createElement(
+                    React.Fragment, {},
+                    React.createElement(
+                        'header', {},
+                        React.createElement(NavigationBar, { active_key: 'dashboard' })
+                    ),
+                    React.createElement(
+                        'main', {},
+                        React.createElement(
+                            ReactBootstrap.Container, {},
+                            React.createElement(
+                                ErrorBoundary, {},
+                                React.createElement('h1', { className: 'my-3' }, 'Scripts'),
+                                React.createElement(
+                                    Scripts, {
+                                        modules: this.state.modules,
+                                        scripts: this.state.scripts,
+                                        expand_advisor: this.state.expand_advisor,
+                                        toggle_advisor: this.state.toggle_advisor,
+                                        settled: this.state.settled,
+                                        python_log: this.state.python_log,
+                                        advice: this.state.advice,
+                                        documentation: this.state.documentation,
+                                        upgrade_available: this.state.upgrade_available // TODO: This should be moved into another component.
+                                    }
+                                ),
+                                React.createElement('h1', { className: 'my-3' }, 'Modules'),
+                                React.createElement(
+                                    Modules, {
+                                        modules: this.state.modules,
+                                        settled: this.state.settled,
+                                        documentation: this.state.documentation
+                                    }
+                                )
+//                              React.createElement('h1', { className: 'my-3' }, 'API'),
+//                              React.createElement('p', {}, 'Want to see what\'s under the hood?'),
+//                              React.createElement(
+//                                  ReactBootstrap.Button, {
+//                                      href: '/api/v1/'
+//                                  },
+//                                  'Go explore'
+//                              )
+                            )
+                        )
+                    ),
+                    React.createElement(
+                        'footer', { className: 'mt-5', style: { 'background': '#de3c3c' } },
+                        React.createElement(
+                            ReactBootstrap.Container, {},
+                            React.createElement(
+                                ReactBootstrap.Row, { className: 'py-3' },
+                                React.createElement(
+                                    ReactBootstrap.Col, {
+                                        style: {
+                                            'color': '#ffffff',
+                                            'text-align': 'center',
+                                            'font-size': '0.85rem',
+                                            'font-weight': 'bold'
+                                        }
+                                    },
+                                    React.createElement('span', {}, '© 2022 Abstract Foundry Limited')
+                                )
+                            )
+                        )
+                    )
+                );
+            }
+        }
+
+        window.addEventListener('beforeunload',
+            function(event) {
+                if (unsaved) {
+                    event.preventDefault();
+                    let message = 'There are unsaved changes, are you sure you want to quit?';
+                    (event || window.event).returnValue = message;
+                    return message;
+                } else {
+                    return undefined;
+                }
+            }
+        );
+
+const beginnerProjects = {
+'Colours': `# Continually change the cube's colour.
+
+hue = 0
+while True:
+    hue += 0.01
+    if hue > 1:
+        hue = 0
+    display.set_all(hsv_colour(hue, 1, 1))
+    time.sleep(1 / 30)
+`,
+'Hearts': `# Draw some pixel art hearts.
+
+r = red
+heart = [
+    [0,0,0,0,0,0,0,0],
+    [0,r,r,0,0,r,r,0],
+    [r,r,r,r,r,r,r,r],
+    [r,r,r,r,r,r,r,r],
+    [0,r,r,r,r,r,r,0],
+    [0,0,r,r,r,r,0,0],
+    [0,0,0,r,r,0,0,0],
+    [0,0,0,0,0,0,0,0],
+]
+display.set_panel("left", heart)
+display.set_panel("right", heart)
+display.set_panel("top", heart)
+`,
+'Rainbow': `# Draw a rainbow pattern.
+
+leds = {}
+for y in range(16):
+    for x in range(16):
+        if x < 8 or y < 8:
+            leds[x, y] = hsv_colour((x+y)/24, 1, 1)
+display.set_leds(leds)
+`,
+'Button': `# If the top button has been pressed an even number of times set the cube red,
+# otherwise set it blue.
+
+while True:
+    if buttons.top_pressed_count % 2 == 0:
+        display.set_all(red)
+    else:
+        display.set_all(blue)
+    time.sleep(1 / 20)
+`,
+'Scrolling clock': `# Every 20 seconds scroll the time across the cube.
+
+import datetime
+display.set_all(black)
+while True:
+    time_text = datetime.datetime.now().strftime("%H:%M")
+    display.scroll_text(time_text, orange)
+    time.sleep(20)
+`,
+'Barometer': `# Use the air pressure sensor as a digital barometer.
+
+display.set_all(black)
+while True:
+    if env_sensor.pressure > 102000:
+        display.scroll_text("Fair", yellow)
+    elif env_sensor.pressure > 99000:
+        display.scroll_text("Change", white)
+    else:
+        display.scroll_text("Rain", blue)
+    time.sleep(20)
+`,
+'Gesture sensing': `# Swipe your finger up or down (just below the buttons) to turn the cube red or blue.
+
+while True:
+    gesture = light_sensor.get_next_gesture(100)
+    if gesture == "up":
+        display.set_all(blue)
+    elif gesture == "down":
+        display.set_all(red)
+`,
+'Dictaphone': `# The top button starts the recording, the middle stops it
+# and the bottom plays what you've recorded.
+
+file = "voicenote.mp3"
+while True:
+    # Wait up to 100 seconds for the next action
+    action = buttons.get_next_action(100.0)
+    if action == "top":
+        microphone.start_recording(file)
+    elif action == "middle":
+        microphone.stop_recording()
+    elif action == "bottom":
+        speaker.play(file)
+`,
+'Draw image': `# Draw an image with a caption on the screen.
+
+screen.resolution_scaling = 1
+screen.draw_image("autumn.jpg")
+screen.draw_rectangle(0, 150, 320, 52, black)
+screen.write_text(96, 158, "Autumn", 2, black, white)
+`,
+'Voice recognition': `# Say "Hey Mycroft" to wake up the voice recognition,
+# and then say a sentence. Your sentence will then be
+# repeated back to you.
+
+microphone.start_voice_recognition()
+while (True):
+    # Wait up to 1000 seconds for some speech
+    sentence = microphone.wait_for_sentence(1000.0)
+    if sentence:
+        # Convert text back to speech
+        speaker.say('You said ' + sentence)
+`,
+'Chiptunes': `# Play a randomly generated tune.
+
+while True:
+    # Play a rising piece
+    for frequency in range(500, 2000, 100):
+        speaker.tone(frequency, 0.01)
+    # Play a beat and then another beat
+    time.sleep(0.02)
+    speaker.tone(500, 0.1, 0.1, function=white_noise)
+    time.sleep(0.05)
+    speaker.tone(500, 0.1, 0.1, function=white_noise)
+    # Play 3 different tones
+    speaker.tone(500 + 500 * random.random(), 0.1)
+    speaker.tone(500 + 500 * random.random(), 0.1)
+    speaker.tone(500 + 500 * random.random(), 0.1)
+    # Play another rising piece
+    for frequency in range(200, 1000, 10):
+        speaker.tone(frequency, 0.003)
+`,
+'Status screen': `# Write some statistics about the Pi to the the screen.
+
+def to_text(value):
+    return str("{:.1f}".format(value))
+
+screen.draw_rectangle(0, 0, 320, 240, black)
+height = 36
+while True:
+    text = ("IP address: " + pi.ip_address() + "\\n"
+        + "CPU temp  : " + to_text(pi.cpu_temp()) + "\\n"
+        + "CPU usage : " + to_text(pi.cpu_percent()) + "\\n"
+        + "RAM usage : " + to_text(pi.ram_percent_used()) +"\\n"
+        + "Disk usage: " + to_text(pi.disk_percent()) + "\\n")
+    screen.write_text(10, 18, text, 1, white, black)
+    time.sleep(5)
+`,
+};
+
+const advancedProjects = {
+'Binary clock': `# Display a binary clock (https://en.wikipedia.org/wiki/Binary_clock).
+
+def draw_column(decimal_digit, x, colour):
+    # Convert digit to four digit binary
+    binary = list(format(decimal_digit, '04b'))
+    # Start at the bottom with the least significant digit
+    binary.reverse()
+    leds = {}
+    for i, value in enumerate(binary):
+        # Set all the leds in a 2x2 square
+        pixel = colour if value == '1' else black
+        y = i * 2
+        leds[x,   y  ] = pixel
+        leds[x,   y+1] = pixel
+        leds[x+1, y  ] = pixel
+        leds[x+1, y+1] = pixel
+    display.set_leds(leds)
+
+import datetime
+display.set_all(black)
+while True:
+    time_now = datetime.datetime.now()
+    seconds = format(time_now.second, '02')
+    minutes = format(time_now.minute, '02')
+    hours   = format(time_now.hour,   '02')
+    draw_column(int(hours[0]),    0, pink)
+    draw_column(int(hours[1]),    2, pink)
+    draw_column(int(minutes[0]),  4, purple)
+    draw_column(int(minutes[1]),  6, purple)
+    draw_column(int(seconds[0]),  8, cyan)
+    draw_column(int(seconds[1]), 10, cyan)
+    time.sleep(1/10)
+`,
+'Lava lamp': `# Generate a lava lamp effect using OpenSimplex noise.
+
+def lava_colour(x, y, z, t):
+    scale = 0.10
+    speed = 0.05
+    hue = noise_4d(scale * x, scale * y, scale * z, speed * t)
+    return hsv_colour(hue, 1, 1)
+
+def paint_cube(t):
+    colours = {}
+    for x in range(9):
+        for y in range(9):
+            for z in range(9):
+                if x == 8 or y == 8 or z == 8:
+                    colour = lava_colour(x, y, z, t)
+                    colours[x,y,z] = colour
+    display.set_3d(colours)
+
+t = 0
+while True:
+    paint_cube(t)
+    time.sleep(1/30)
+    t += 1
+`,
+'Conway\'s Game of Life': `# Run Conway's Game of Life (https://en.wikipedia.org/wiki/Conway's_Game_of_Life).
+
+import random
+max_turns = 50
+starting_live_ratio = 0.4
+colour = random_colour()
+num_turns = 0
+alive_cells = []
+for x in range(0,16):
+    for y in range(0,16):
+        if x < 8 or y < 8:
+            if random.random() < starting_live_ratio:
+                alive_cells.append((x,y))
+
+def num_alive_neighbours(x, y):
+    num_neighbours = 0
+    for x2 in [x-1, x, x+1]:
+        for y2 in [y-1, y, y+1]:
+            if (x2, y2) != (x, y):
+                neighbour = (x2, y2)
+                # Account for 3D nature of panels
+                if x2 == 8 and y2 >= 8:
+                    neighbour = (y2, 7)
+                elif y2 == 8 and x2 >= 8:
+                    neighbour = (7, x2)
+                if neighbour in alive_cells:
+                    num_neighbours += 1
+    return num_neighbours
+
+while (num_turns < max_turns):
+    next_cells = []
+    leds = {}
+    for x in range(0,16):
+        for y in range(0,16):
+            if x < 8 or y < 8:
+                alive = (x, y) in alive_cells
+                neighbours = num_alive_neighbours(x, y)
+                # Remains alive
+                if alive and (neighbours == 2
+                        or neighbours == 3):
+                    next_cells.append((x, y))
+                    leds[x, y] = colour
+                # Becomes alive
+                elif not alive and neighbours == 3:
+                    next_cells.append((x, y))
+                    leds[x, y] = colour
+                # Else dead
+                else:
+                    leds[x, y] = black
+    alive_cells = next_cells
+    display.set_leds(leds)
+    time.sleep(0.3)
+    num_turns += 1
+`,
+'Charts': `# Chart the temperature of the cube on the screen.
+
+import matplotlib.pyplot as plt
+file_name = "Chart.jpg"
+temperatures = [0 for i in range(0,20)]
+while True:
+    temperatures.pop(0)
+    temperatures.append(env_sensor.temperature)
+    fig = plt.figure(figsize=(3.20, 2.40*0.8))
+    times = [i for i in range(0,20)] # plot 20 minutes
+    plt.plot(times, temperatures, label = "Temp")
+    plt.xlabel('Time (minutes)')
+    plt.legend()
+    fig.savefig(file_name, bbox_inches='tight')
+    screen.draw_image(file_name)
+    time.sleep(60)
+`,
+'Water level': `# Pick up the cube and rotate it - this project makes it look like there is water inside.
+# Note: Requires the advanced kit IMU add-on.
+
+def dot_product(vector1, vector2):
+    (x1,y1,z1) = vector1
+    (x2,y2,z2) = vector2
+    return (x1 * x2) + (y1 * y2) + (z1 * z2)
+
+def led_below_water_level(x, y, z, gravity):
+    mid_point_height = dot_product((4.5, 4.5, 4.5), gravity)
+    led_bottom = (x, y, z)
+    led_top = (x+1, y+1, z+1)
+    max_height = max(dot_product(led_bottom, gravity), \\
+        dot_product(led_top, gravity))
+    return (max_height < mid_point_height)
+
+while True:
+    gravity = (imu.gravity_x, imu.gravity_y, imu.gravity_z)
+    leds = {}
+    for x in range(9):
+        for y in range(9):
+            for z in range(9):
+                if x == 8 or y == 8 or z == 8:
+                    if led_below_water_level(x,y,z, gravity):
+                        leds[x, y, z] = cyan
+                    else:
+                        leds[x, y, z] = black
+    time.sleep(0.05)
+    display.set_3d(leds)
+`,
+'Multiple cubes': `# First configure the IP addresses for a pair of cubes - then you can control the colour
+# of one with the orientation of the other.
+
+cube1 = LumiCube("192.168.0.11")
+cube2 = LumiCube("192.168.0.12")
+
+while True:
+    colour1 = hsv_colour(cube2.imu.yaw / 360, 1, 1)
+    colour2 = hsv_colour(cube1.imu.yaw / 360, 1, 1)
+    cube1.display.set_all(colour1)
+    cube2.display.set_all(colour2)
+    time.sleep(0.1)
+`,
+'Crypto display': `# Visualise live Bitcoin price swings.
+
+import requests
+def get_price(from_currency, to_currency):
+    r = requests.get("https://api.gemini.com/v1/pricefeed/"
+        + from_currency + to_currency)
+    price = float(r.json()[0]['price'])
+    return price
+
+initial = get_price('btc', 'usd')
+prices = [initial for i in range(16)]
+display.set_all(black)
+while True:
+    # Add the new price and remove the oldest one
+    prices.append(get_price('btc', 'usd'))
+    prices = prices[1:]
+    step = 3.0
+    led_colours = {}
+    for x in range(0, len(prices)):
+        y_value = int((prices[x] - min(prices))/step)
+        for y in range(8):
+            colour = white if y == y_value else black
+            led_colours[x, y] = colour
+    display.set_leds(led_colours)
+    time.sleep(2)
+`,
+'Equaliser': `# Records microphone audio, processes it into frequency buckets,
+# and then displays the levels of each bucket on the LEDs.
+
+num_buckets = 8
+
+display.set_all(black)
+pixels_per_bucket = max(1, 16/num_buckets)
+buckets = [0 for i in range(num_buckets)]
+last_time = time.time()
+max_magnitude = 1 # Dynamically adjust the max as we go along
+
+# Start recording audio samples
+microphone.start_recording_for_frequency_analysis()
+
+while 1:
+    # Get new bucket levels, converting the audio samples into 8 frequency buckets between 0Hz and 1000Hz
+    new_buckets = list(microphone.get_frequency_buckets(num_buckets, 0, 800).values())
+
+    # Process data, keeping track of max level
+    for bi, magnitude in enumerate(new_buckets):
+        buckets[bi] = max(buckets[bi], magnitude)
+        max_magnitude = max(max_magnitude, magnitude)
+
+    # Every 10th of a second update the LEDs
+    # Note: This is done separately from the data processing because we don't want the LEDs to change too fast
+    if time.time() - last_time > 1/10:
+        last_time = time.time()
+        colours = {}
+        for y in range(0,8):
+            for x in range(0,16):
+                bi = int(x/pixels_per_bucket)
+                if y/8.0 <= buckets[bi] / max_magnitude or y == 0:
+                    colours[(x,y)] = hsv_colour(1 - bi/num_buckets, 1, 1)
+                else:
+                    colours[(x,y)] = 0
+        display.set_leds(colours)
+        # Reset the bucket levels
+        buckets = [0 for i in range(num_buckets)]
+        # Over time gradually decay the max
+        max_magnitude *= 0.99
+`,
+'Ripples': `# Animate ripples across the cube's LEDs.
+
+class Ripple:
+    def __init__(self, start_x, start_y, start_z, hsv, velocity=10, wavefront_size=1.3):
+        self.start_x = start_x
+        self.start_y = start_y
+        self.start_z = start_z
+        self.hsv = hsv
+        self.velocity = velocity
+        self.wavefront_size = wavefront_size
+        self.start_time = time.time()
+        self.radius = 0
+
+    def draw(self, leds):
+        self.radius = self.velocity * (time.time() - self.start_time)
+        for x in range(0,9):
+            for y in range(0,9):
+                for z in range(0,9):
+                    if x == 8 or y == 8 or z == 8:
+                        # Calculate how far this pixel is from the ripple line
+                        distance = (abs(self.start_x - x) ** 2 + abs(self.start_y - y) ** 2 + abs(self.start_z - z) ** 2) ** (1/2)
+                        dist_diff = abs(self.radius - distance)
+                        if (dist_diff < self.wavefront_size):
+                            # Set the brightness based on how close the pixel is to the ripple line
+                            pos_brightness = math.cos(math.pi*dist_diff/(2*self.wavefront_size))
+                            hue, sat, value = self.hsv
+                            brightness = value*pos_brightness
+                            if brightness > 0.05: # Set any low brightness LEDs black
+                                leds[(x,y,z)] = hsv_colour(hue, sat, brightness)
+
+    def finished(self):
+        if (self.radius > 16):
+            return True
+        return False
+
+display.set_all(black)
+ripples = []
+count = 0
+
+while True:
+
+    # Every 30 iterations create a new ripple
+    if count % 30 == 0:
+        # Pick a random 3D coordinate to start from
+        (x, y, z) = [random.randint(0,7) for i in range(0,3)]
+        # Make it start on one of the faces
+        panel = random.randint(0,3)
+        if panel == 0:
+            z = 0
+        elif panel == 1:
+            x = 8
+        else:
+            y = 8
+        hsv = (random.random(), 1, 1)
+        ripples.append(Ripple(x, y, z, hsv))
+
+    # Initialise the LEDs to black
+    leds = {}
+    for x in range(0,9):
+        for y in range(0,9):
+            for z in range(0,9):
+                if x == 8 or y == 8 or z == 8:
+                    leds[(x,y,z)] = 0;
+
+    # Draw all the ripples
+    for r in ripples:
+        r.draw(leds)
+
+    # Remove any ripples that have finished
+    to_remove = []
+    for r in ripples:
+        if r.finished():
+            to_remove.append(r)
+    for r in to_remove:
+        ripples.remove(r)
+
+    display.set_3d(leds, True)
+    time.sleep(1/20)
+    count += 1
+`,
+'Interactive ripples': `# Animate ripples across the cube's LEDs, which respond
+# to tapping the cube (or accelerating it in some way).
+# Note: Requires the advanced kit IMU add-on.
+
+import threading
+
+class Ripple:
+    def __init__(self, start_x, start_y, start_z, hsv, velocity=10, wavefront_size=1.3):
+        self.start_x = start_x
+        self.start_y = start_y
+        self.start_z = start_z
+        self.hsv = hsv
+        self.velocity = velocity
+        self.wavefront_size = wavefront_size
+        self.start_time = time.time()
+        self.radius = 0
+
+    def draw(self, leds):
+        self.radius = self.velocity * (time.time() - self.start_time)
+        for x in range(0,9):
+            for y in range(0,9):
+                for z in range(0,9):
+                    if x == 8 or y == 8 or z == 8:
+                        # Calculate how far this pixel is from the ripple line
+                        distance = (abs(self.start_x - x) ** 2 + abs(self.start_y - y) ** 2 + abs(self.start_z - z) ** 2) ** (1/2)
+                        dist_diff = abs(self.radius - distance)
+                        if (dist_diff < self.wavefront_size):
+                            # Set the brightness based on how close the pixel is to the ripple line
+                            pos_brightness = math.cos(math.pi*dist_diff/(2*self.wavefront_size))
+                            hue, sat, value = self.hsv
+                            brightness = value*pos_brightness
+                            if brightness > 0.05: # Set any low brightness LEDs black
+                                leds[(x,y,z)] = hsv_colour(hue, sat, brightness)
+
+    def finished(self):
+        if (self.radius > 16):
+            return True
+        return False
+
+# Check the acceleration in a separate thread to ensure we sample it at regular intervals
+acc_direction = None
+wait_count = 0
+def worker():
+    global acc_direction, wait_count
+    avg_acc_x, avg_acc_y, avg_acc_z = 0, 0, 0
+    while True:
+        acc_x, acc_y, acc_z = (abs(imu.acceleration_x), abs(imu.acceleration_y), abs(imu.acceleration_z))
+        avg_acc_x = avg_acc_x * 0.95 + acc_x * 0.05
+        avg_acc_y = avg_acc_y * 0.95 + acc_y * 0.05
+        avg_acc_z = avg_acc_z * 0.95 + acc_z * 0.05
+        acc_x -= avg_acc_x
+        acc_y -= avg_acc_y
+        acc_z -= avg_acc_z
+        max_acc = max(acc_x, acc_y, acc_z)
+        if wait_count > 0:
+            wait_count -= 1
+        if max_acc > 0.15 and wait_count == 0:
+            wait_count = 5
+            if max_acc == acc_x:
+                acc_direction = "x"
+            elif max_acc == acc_y:
+                acc_direction = "y"
+            else:
+                acc_direction = "z"
+        time.sleep(0.02)
+threading.Thread(target=worker, daemon=True).start()
+
+display.set_all(black)
+ripples = []
+
+while True:
+    # If an acceleration is detected create new ripple
+    if acc_direction != None:
+        # Make it start in the middle of the accelerated face
+        if acc_direction == "x":
+            x, y, z = 8, 4, 4
+        elif acc_direction == "y":
+            x, y, z = 4, 8, 4
+        else:
+            x, y, z = 4, 4, 0
+        hsv = (random.random(), 1, 1)
+        ripples.append(Ripple(x, y, z, hsv))
+        # Reset the acceleration direction
+        acc_direction = None
+
+    # Initialise the LEDs to black
+    leds = {}
+    for x in range(0,9):
+        for y in range(0,9):
+            for z in range(0,9):
+                if x == 8 or y == 8 or z == 8:
+                    leds[(x,y,z)] = 0;
+
+    # Draw all the ripples
+    for r in ripples:
+        r.draw(leds)
+
+    # Remove any ripples that have finished
+    to_remove = []
+    for r in ripples:
+        if r.finished():
+            to_remove.append(r)
+    for r in to_remove:
+        ripples.remove(r)
+
+    display.set_3d(leds, True)
+    time.sleep(1/20)
+`,
+'Land grab': `# Several automated players mark neighbouring LEDs with their colour,
+# until they get stuck. Can you make the players more intelligent?
+
+def adjacent_positions(x, y, include_diagonal=False):
+    positions = [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]
+    if include_diagonal:
+        positions = positions + [(x-1, y-1), (x-1, y+1), (x+1, y-1), (x+1, y+1)]
+    mapped_positions = []
+    for (x,y) in positions:
+        # Account for the 3D nature of the panels
+        if x > 7 and y > 7:
+            if x > 7 and y == 8:
+                mapped_positions.append((7, x))
+            elif x == 8 and y > 7:
+                mapped_positions.append((y, 7))
+        # Make sure x and y are valid positions
+        elif (x < 16 and x >= 0) and (y < 16 and y >= 0):
+            mapped_positions.append((x,y))
+    return mapped_positions
+
+class Player:
+    def __init__(self, pos, colour):
+        self.pos = pos
+        self.colour = colour
+
+    def move(self, leds):
+        (x,y) = self.pos
+        # Get a list of all valid positions to move to
+        valid_positions = []
+        for neighbour in adjacent_positions(x, y):
+            if neighbour not in leds:
+                valid_positions.append(neighbour)
+        # If there are no valid positions the player is finished, so return False
+        if len(valid_positions) == 0:
+            return False
+        # Choose a random valid position
+        pos = valid_positions[random.randrange(len(valid_positions))]
+        (x,y) = pos
+        self.pos = pos
+        leds[x, y] = self.colour
+        display.set_led(x, y, self.colour)
+        return True
+
+num_players = 4
+while True:
+    # Start a new game
+    players = []
+    leds = {}
+    display.set_all(black)
+    # Generate all the players with random starting positions and colours
+    for i in range(0, num_players):
+        (x,y) = (random.randrange(16), random.randrange(16))
+        if x >= 8 and y >= 8:
+            y -= 8
+        players.append(Player((x,y), random_colour()))
+    # Keep allowing players to move until there are no players left
+    while len(players) > 0:
+        died = []
+        # Move all the players
+        for player in players:
+            if player.move(leds) == False:
+                died.append(player)
+        # Remove finished players
+        for player in died:
+            players.remove(player)
+        time.sleep(0.1)
+    # Wait before starting a new game
+    time.sleep(1)
+`,
+'Rain': `# Rain animation.
+
+display.set_all(black)
+rows = [[0 for x in range(16)] for y in range(8)]
+while True:
+    # Shift all rows down
+    rows.pop(0)
+    # Create a new row
+    top_row = rows[-1]
+    new_top_row = []
+    for prev_pixel in top_row:
+        new_pixel = 0
+        # If the previous pixel was the start of a drop, create the
+        # droplet tail by reducing the brightness for the new pixel
+        if prev_pixel > 0:
+            new_pixel = prev_pixel - 0.4
+            new_pixel = max(new_pixel, 0.0)
+        # Sometimes generate a new droplet
+        elif random.random() < 0.1:
+            new_pixel = 1
+        new_top_row.append(new_pixel)
+    rows.append(new_top_row)
+    # Convert the brightness values to LED colours
+    leds = {}
+    for y in range(0,8):
+        for x in range(0,16):
+            leds[(x, y)] = hsv_colour(0.6, 1, rows[y][x])
+    display.set_leds(leds)
+    time.sleep(1/15)
+`,
+'Autumn scene': `# Autumn animation (tree, moon, and falling leaves).
+
+y = 0xffc000
+o = 0xff9000
+r = hsv_colour(0.04, 1, 1)
+b = hsv_colour(0.04, 0.7, 0.3)
+w = hsv_colour(0, 0, 1)
+top = [
+    [0,w,0,0,0,0,0,0],
+    [w,0,0,0,0,0,0,0],
+    [w,0,0,0,0,0,o,r],
+    [0,w,0,0,o,o,o,o],
+    [0,0,0,o,o,r,o,o],
+    [0,0,0,o,o,o,o,o],
+    [0,0,o,o,r,o,y,o],
+    [0,0,o,o,o,o,o,o],
+]
+left = [
+    [0,0,o,o,y,o,r,o],
+    [0,0,0,r,o,o,o,o],
+    [0,0,0,0,0,o,o,y],
+    [0,0,0,0,0,0,0,b],
+    [0,0,0,0,0,0,0,b],
+    [0,0,0,0,0,0,0,b],
+    [0,0,0,0,0,0,0,b],
+    [0,0,0,0,0,0,b,b],
+]
+right = [
+    [o,r,o,y,o,o,0,0],
+    [o,o,o,o,r,0,0,0],
+    [y,o,o,0,0,0,0,0],
+    [b,0,0,0,0,0,0,0],
+    [b,0,0,0,0,0,0,0],
+    [b,0,0,0,0,0,0,0],
+    [b,0,0,0,0,0,0,0],
+    [b,b,0,0,0,0,0,0],
+]
+display.set_panel('left', left)
+display.set_panel('right', right)
+display.set_panel('top', top)
+
+# Animation of leaves falling to the floor
+leaves = {}
+while True:
+    # 30% chance of creating a new falling leaf
+    if random.random() < 0.3:
+        # Start at a random point on the tree
+        y = 7
+        x = random.randint(2,6)
+        if (random.random() < 0.5):
+            x += 8
+        leaves[(x,y)] = hsv_colour(0.04 + 0.12*random.random(), 1, 1)
+
+    # Move all the falling leaves
+    leds = {}
+    new_leaves = {}
+    for (x,y), colour in leaves.items():
+        if y > 0:
+            # If the leaf has moved, set the LED back to the original image
+            if x < 8:
+                leds[(x,y)] = left[7-y][x]
+            else:
+                leds[(x,y)] = right[7-y][x-8]
+            # Move the leaf side to side as it falls
+            if y % 2 == 0:
+                x = x + 1
+            else:
+                x = x - 1
+            # Move the leaf down
+            new_leaves[(x,y-1)] = colour
+
+    leaves = new_leaves
+    leds.update(leaves)
+    display.set_leds(leds)
+    time.sleep(0.2)
+`,
+'Windmill': `# Blow on the back of the cube to make the windmill animation turn.
+
+import threading
+
+humidity = 100
+
+def worker():
+    global humidity
+    while True:
+        humidity = env_sensor.humidity
+        time.sleep(0.05)
+
+threading.Thread(target=worker, daemon=True).start()
+
+def windmill_shader(x, y, blade_angle):
+    theta = 360 * (0.5 + math.atan2(y, x) / (2 * math.pi))
+    modulo = (3 * theta) % 360
+    difference = abs(modulo - blade_angle)
+    return hsv_colour(0, 0, 500 / difference ** 2 if difference > 0 else 1)
+
+decay = 0.07
+sample_period = 0.025
+threshold = 0.15
+previous_sample = 100
+next_sample_time = time.monotonic() + sample_period
+accumulator = 0
+blade_angle = 0
+rotational_velocity = 0
+max_velocity = 70
+while True:
+    now = time.monotonic()
+    if time.monotonic() > next_sample_time:
+        sample = humidity
+        if sample > previous_sample + threshold:
+            accumulator = 3
+        previous_sample = sample
+        next_sample_time = now + sample_period
+    rotational_velocity = max_velocity * min(accumulator, 1)
+    blade_angle = (blade_angle + rotational_velocity) % 360
+    canvas = {}
+    for x in range(9):
+        for y in range(9):
+            for z in range(9):
+                if x == 8 or y == 8 or z == 8:
+                    projected_x = (x - z)
+                    projected_y = (2 * y - x - z) / (3 ** 0.5)
+                    canvas[(x,y,z)] = windmill_shader(projected_x, projected_y, blade_angle)
+    display.set_3d(canvas, True)
+    accumulator *= (1 - decay)
+    time.sleep(1 / 25)
+`,
+};
+
+        const container = document.querySelector('#body-container');
+        ReactDOM.render(React.createElement(Dashboard), container);
+    </script>
+</body>
+</html>

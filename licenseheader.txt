@@ -1,0 +1,7 @@
+<#if licenseFirst??>
+${licenseFirst}
+</#if>
+${licensePrefix}Copyright (c) 2022 Abstract Foundry Limited
+<#if licenseLast??>
+${licenseLast}
+</#if>
