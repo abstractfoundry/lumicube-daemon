@@ -27,4 +27,4 @@ jobs:
         run: mvn --batch-mode --threads 2C -DskipTests package
 
       - name: Test
-        run: mvn --batch-mode --threads 2C -Dmaven.test.failure.ignore=true test
+        run: mvn --batch-mode --threads 2C test
