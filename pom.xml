@@ -191,10 +191,16 @@
 			<artifactId>fastutil-core</artifactId>
 			<version>8.5.6</version>
 		</dependency>
+		<dependency>
+			<groupId>io.github.green4j</groupId>
+			<artifactId>green-jelly</artifactId>
+			<version>${greenJelly.version}</version>
+		</dependency>
 	</dependencies>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.source>16</maven.compiler.source>
 		<maven.compiler.target>16</maven.compiler.target>
+		<greenJelly.version>0.1.0</greenJelly.version>
 	</properties>
 </project>

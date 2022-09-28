@@ -4,9 +4,10 @@
 
 package com.abstractfoundry.daemon.common;
 
-import com.abstractfoundry.daemon.thirdparty.json.JsonNumber;
-import com.abstractfoundry.daemon.thirdparty.json.JsonParser;
-import com.abstractfoundry.daemon.thirdparty.json.JsonParserListener;
+import io.github.green4j.jelly.JsonNumber;
+import io.github.green4j.jelly.JsonParser;
+import io.github.green4j.jelly.JsonParserListener;
+
 import java.io.IOException;
 
 public final class LightweightJsonParser {
