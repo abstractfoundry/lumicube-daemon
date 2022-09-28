@@ -106,7 +106,7 @@ public class SetFieldsMethod { // TODO: Abstract common logic with DisplaySetMet
 		try {
 			if (!asynchronous) {
 				daemonNode.request(module.getId(), TypeId.SET_FIELDS, requestPriority, buffers, batchCount, continuation);
-			} else { // Reply before getting the reponse from the module.
+			} else { // Reply before getting the response from the module.
 				daemonNode.request(module.getId(), TypeId.SET_FIELDS, requestPriority, buffers, batchCount, NULL_CONTINUATION);
 				continuationTask.run();
 			}

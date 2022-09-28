@@ -87,7 +87,7 @@ public abstract class Node {
 		if (buffers == null || count > buffers.length || continuation == null) {
 			throw new IllegalArgumentException("Invalid arguments.");
 		}
-		var timestamp = System.nanoTime(); // In this scenario, where the same continuation object is associated with multiple TIDs, it is possible that the continutation expires on one TID, and is then returned to the pool before the other associated TID expires, unless we mark all associated TIDs with the same timestamp, such that they all expire together under the same atomic operation on the service table.
+		var timestamp = System.nanoTime(); // In this scenario, where the same continuation object is associated with multiple TIDs, it is possible that the continuation expires on one TID, and is then returned to the pool before the other associated TID expires, unless we mark all associated TIDs with the same timestamp, such that they all expire together under the same atomic operation on the service table.
 		var transferIds = new int[count]; // This generates some small amount of garbage, but it should be easily offset by the benefit of batching.
 		for (var index = 0; index < count; index++) {
 			try {
