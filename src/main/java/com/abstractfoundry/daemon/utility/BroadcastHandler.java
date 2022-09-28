@@ -60,10 +60,10 @@ public class BroadcastHandler { // TODO: This class is fairly hacked-up, impleme
 					} catch (RuntimeException exception) {
 						logger.error("Failed to deserialise the publication.", exception);
 					}
-					if (count == 112 && keys[0] == microphoneKey) { // TODO: UNHACK (and note we should not assume that any publication ONLY contains microhphone data).
+					if (count == 112 && keys[0] == microphoneKey) { // TODO: UNHACK (and note we should not assume that any publication ONLY contains microphone data).
 						try {
 							samples.clear();
-							samples.order(ByteOrder.LITTLE_ENDIAN); // The virtual microhone consumes "s16le" samples.
+							samples.order(ByteOrder.LITTLE_ENDIAN); // The virtual microphone consumes "s16le" samples.
 							for (var index = 0; index < count; index++) {
 								var sample = (short) values[index];
 								samples.putShort(sample);

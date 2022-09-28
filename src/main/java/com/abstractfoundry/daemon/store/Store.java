@@ -183,7 +183,7 @@ public class Store { // TODO: This assumes (correctly, for now) that node IDs ar
 			latest.put(key, value);
 			if (uuid != null) {
 				try {
-					getTimeseries().add(buildTimeSeriesKey(uuid, key), value); // TODO: Do asychronously to avoid delaying the inbox thread?
+					getTimeseries().add(buildTimeSeriesKey(uuid, key), value); // TODO: Do asynchronously to avoid delaying the inbox thread?
 				} catch (JedisException exception) {
 					throw new DatabaseException("Failed to persist latest field value.", exception);
 				}
