@@ -61,15 +61,16 @@ public class ScriptExecutor {
 			logger.error("Failed to interrupt currently executing methods.", exception);
 		}
 		if (currentProcess != null) {
+			Process process = currentProcess;
 			try {
 				logger.info("Terminating the current script.");
-				currentProcess.destroy();
+				process.destroy();
 				Thread.sleep(KILL_TIMEOUT_MILLISECONDS);
 			} catch (InterruptedException exception) {
 				logger.error("Interrupted whilst terminating the current script.", exception);
 				Thread.currentThread().interrupt();
 			}
-			var future = currentProcess.destroyForcibly().onExit();
+			var future = process.destroyForcibly().onExit();
 			try {
 				future.get(KILL_TIMEOUT_MILLISECONDS, TimeUnit.MILLISECONDS);
 			} catch (InterruptedException exception) {
@@ -83,29 +84,34 @@ public class ScriptExecutor {
 		}
 	}
 
-	public synchronized void launch(String body, boolean automated) {
+	public synchronized void launch(String body, boolean automated, boolean background) {
 		try {
 			logger.info("Launching script:\n{}\n", body);
 			if (!automated) {
 				unautomatedLaunchCount++;
 			}
-			terminate();
+			if (!background) {
+				terminate();
+			}
 			var builder = new ProcessBuilder(
 				"/usr/bin/python3", "-c", "from foundry_api.script_launcher import bootstrap; exec(bootstrap)", contextDirectory.toString()
 			);
 			var environment = builder.environment();
 			environment.put("PYTHONPATH", contextDirectory.toString());
 			builder.directory(new File(System.getProperty("user.home"), "Desktop"));
-			currentProcess = builder.start();
-			try (var outputStream = currentProcess.getOutputStream(); var outputWriter = new OutputStreamWriter(outputStream)) {
-				globalPool.submit(new LineReaderTask(currentProcess.getInputStream(), line -> store.appendScriptLog(line)));
-				globalPool.submit(new LineReaderTask(currentProcess.getErrorStream(), line -> {
+			Process process = builder.start();
+			try (var outputStream = process.getOutputStream(); var outputWriter = new OutputStreamWriter(outputStream)) {
+				globalPool.submit(new LineReaderTask(process.getInputStream(), line -> store.appendScriptLog(line)));
+				globalPool.submit(new LineReaderTask(process.getErrorStream(), line -> {
 					var trimmed = line.trim();
 					if (!trimmed.startsWith("File \"<string>\", line ") && !trimmed.endsWith(", in <module>")) { // TODO: Is there a better way to tidy up the tracebacks?
 						store.appendScriptLog(line);
 					}
 				}));
 				outputWriter.write(body + "\n\ntime.sleep(2)\n\n"); // Ensure that the script ends with at least one clear newline. // TODO: Properly fix this time.sleep(2) hack, which is there to prevent the domain socket closure from interrupting the dispatch and completion of Daemon methods which are called by the script.
+			}
+			if (!background) {
+				currentProcess = process;
 			}
 		} catch (RuntimeException | IOException exception) {
 			logger.error("Error launching script.", exception);
