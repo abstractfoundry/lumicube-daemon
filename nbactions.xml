@@ -10,7 +10,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:1.5.0:exec</goal>
             </goals>
             <properties>
-                <exec.args>-Dlogback.configurationFile=log.xml -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -classpath %classpath com.abstractfoundry.daemon.Daemon</exec.args>
+                <exec.args>-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -classpath %classpath com.abstractfoundry.daemon.Daemon</exec.args>
                 <exec.executable>java</exec.executable>
             </properties>
         </action>
@@ -24,7 +24,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:1.5.0:exec</goal>
             </goals>
             <properties>
-                <exec.args>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address} -Dlogback.configurationFile=log.xml -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -classpath %classpath com.abstractfoundry.daemon.Daemon</exec.args>
+                <exec.args>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address} -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -classpath %classpath com.abstractfoundry.daemon.Daemon</exec.args>
                 <exec.executable>java</exec.executable>
                 <jpda.listen>true</jpda.listen>
             </properties>
@@ -39,7 +39,7 @@
                 <goal>org.codehaus.mojo:exec-maven-plugin:1.5.0:exec</goal>
             </goals>
             <properties>
-                <exec.args>-Dlogback.configurationFile=log.xml -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -classpath %classpath com.abstractfoundry.daemon.Daemon</exec.args>
+                <exec.args>-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -classpath %classpath com.abstractfoundry.daemon.Daemon</exec.args>
                 <exec.executable>java</exec.executable>
             </properties>
         </action>
