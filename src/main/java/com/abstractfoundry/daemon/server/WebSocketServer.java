@@ -41,7 +41,7 @@ public class WebSocketServer {
 				LockSupport.parkNanos(10_000_000L); // Wait at least 10 ms to avoid starving the inbox thread. // TODO: We should use random exponential backoff (and also perhaps write something to the log).
 			}
 		} catch (RuntimeException exception) {
-			logger.error("Error processing command.", exception); // TODO: Send the error back to the client (also allowing the client to relaim the correlation ID).
+			logger.error("Error processing command.", exception); // TODO: Send the error back to the client (also allowing the client to reclaim the correlation ID).
 		}
 	}
 

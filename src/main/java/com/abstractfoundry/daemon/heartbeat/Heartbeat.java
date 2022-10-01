@@ -25,6 +25,7 @@ public class Heartbeat {
 			new QueryMetadataTask(daemonNode, store),
 			new PersistStoreTask(store, 120),
 			new DisplayNetworkAddress(scriptExecutor, store),
+			new SetBrightnessAndGamma(scriptExecutor, store),
 			new StartMainScriptTask(scriptExecutor, store)
 		};
 	}

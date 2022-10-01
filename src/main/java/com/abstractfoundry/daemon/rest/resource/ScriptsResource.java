@@ -95,7 +95,7 @@ public class ScriptsResource {
 		} else {
 			body = store.getScriptBody(scriptName, "");
 		}
-		scriptExecutor.launch(body, false);
+		scriptExecutor.launch(body, false, false);
 		return Response.ok().build();
 	}
 

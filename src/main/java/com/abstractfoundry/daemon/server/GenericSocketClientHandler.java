@@ -211,7 +211,7 @@ public class GenericSocketClientHandler {
 					final var moduleName = moduleNameView.toString(); // Materialise as constant string for task closure.
 					final var methodName= methodNameView.toString();
 					final var json = jsonView.toString();
-					globalPool.submit(() -> { // Invoke method in global pool, as it might be long-runnning, and recursively spawn additional requests to this handler (so we must not deadlock).
+					globalPool.submit(() -> { // Invoke method in global pool, as it might be long-running, and recursively spawn additional requests to this handler (so we must not deadlock).
 						try {
 							Map response = new HashMap();
 							ByteBuffer encoded;

@@ -37,7 +37,7 @@ public class StartMainScriptTask implements Runnable { // TODO: Make this less h
 				taskComplete = true; // Our task is complete even if we decide to not launch anything.
 				var body = store.getScriptBody("main", null);
 				if (body != null && scriptExecutor.getUnautomatedLaunchCount() == 0) { // Only launch the main script if the user has not already launched something.
-					scriptExecutor.launch(body, true);
+					scriptExecutor.launch(body, true, false);
 				}
 			}
 		}

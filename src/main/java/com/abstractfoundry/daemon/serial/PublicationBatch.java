@@ -32,7 +32,7 @@ public class PublicationBatch<T> extends Batch {
 	public void flush() {
 		var count = count();
 		if (count > 0) {
-			var indices = new Integer[count]; // Array of slot indices to publish in batch. // TODO: Cache these arrays to reduce the number of alloctions?
+			var indices = new Integer[count]; // Array of slot indices to publish in batch. // TODO: Cache these arrays to reduce the number of allocations?
 			for (int index = 0; index < count; index++) {
 				indices[index] = index;
 			}
