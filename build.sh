@@ -27,7 +27,7 @@ cp $1.zip $context/
 
 cat > $context/AppRun <<\EOF
 #!/bin/bash
-"$APPDIR/usr/lib/jvm/foundry-default/bin/java" -classpath "$APPDIR/opt/abstractfoundry/daemon/lib/*" -Dlogback.configurationFile="$APPDIR/opt/abstractfoundry/daemon/log.xml" com.abstractfoundry.daemon.Daemon "$@"
+"$APPDIR/usr/lib/jvm/foundry-default/bin/java" -classpath "$APPDIR/opt/abstractfoundry/daemon/lib/*" com.abstractfoundry.daemon.Daemon "$@"
 EOF
 
 cat > $context/Daemon.desktop <<\EOF

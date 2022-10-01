@@ -19,7 +19,6 @@
       <outputDirectory></outputDirectory>
       <includes>
         <include>README</include>
-        <include>log.xml</include>
       </includes>
     </fileSet>
   </fileSets>
