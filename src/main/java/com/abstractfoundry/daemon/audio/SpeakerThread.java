@@ -121,6 +121,10 @@ public class SpeakerThread extends Thread {
 	private String getPulseAudioDefaultSinkName() throws IOException {
 		var builder = new ProcessBuilder("/usr/bin/pactl", "info")
 			.redirectError(ProcessBuilder.Redirect.DISCARD); // Note: Directing the error stream ensures we don't deadlock, see: https://stackoverflow.com/a/57949752
+		var environment = builder.environment();
+		environment.put("LC_ALL", "C");
+		environment.put("LANG", "C");
+		environment.put("LANGUAGE", "C");
 		var process = builder.start();
 		var raw = process.getInputStream();
 		try (var reader = new InputStreamReader(raw); var stream = new BufferedReader(reader)) {

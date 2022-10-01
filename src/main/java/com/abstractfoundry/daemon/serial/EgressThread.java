@@ -16,6 +16,10 @@ import java.util.concurrent.locks.LockSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: Do not hold-off when cursor is out of bounds due to ACKed slots at start of window.
+// TODO: Prevent so many TimeoutException objects being allocated by the Exchanger.
+// TODO: Call handleFeedback() in between every sub-operation?
+
 class EgressThread extends Thread {
 
 	private static final Logger logger = LoggerFactory.getLogger(EgressThread.class);

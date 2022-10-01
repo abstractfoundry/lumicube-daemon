@@ -107,8 +107,8 @@ StartLimitBurst=5
 
 [Service]
 ExecStartPre=/bin/sleep 5
-ExecStart=''' + daemon_directory + '''/launch.sh /dev/ttyAMA0
-WorkingDirectory=''' + daemon_directory + '''
+ExecStart=%h/AbstractFoundry/Daemon/launch.sh /dev/ttyAMA0
+WorkingDirectory=%h/AbstractFoundry/Daemon
 Restart=always
 RestartSec=5s
 
@@ -160,6 +160,8 @@ def install_addon_packages():
     home = os.path.expanduser('~')
     voice_directory = os.path.join(home, 'AbstractFoundry', 'Daemon', 'Voice')
     os.makedirs(voice_directory, exist_ok=True)
+    desktop_directory = os.path.join(home, 'Desktop')
+    os.makedirs(desktop_directory, exist_ok=True)
 
     precise_variant = 'armv7l' if platform_variant() == 'arm' else 'x86_64'
 
@@ -191,7 +193,7 @@ def install_addon_packages():
     run('tar -zxvf ' + precise_engine_path + ' -C ' + voice_directory)
 
     autumn_image = 'autumn.jpg'
-    autumn_image_path = os.path.join(home, 'Desktop', autumn_image)
+    autumn_image_path = os.path.join(desktop_directory, autumn_image)
     run('curl -fL '
         + shlex.quote(DOWNLOAD_URL_PREFIX + autumn_image)
         + ' > ' + autumn_image_path)

@@ -37,7 +37,7 @@ public class DisplayNetworkAddress implements Runnable {
 		if (!addressWrittenToScreen) {
 			var module = store.getNamespace().getModule("screen");
 			if (module != null) {
-				scriptExecutor.launch(WRITE_SCREEN_SCRIPT, true);
+				scriptExecutor.launch(WRITE_SCREEN_SCRIPT, true, true);
 				addressWrittenToScreen = true;
 			}
 		}
@@ -58,7 +58,7 @@ public class DisplayNetworkAddress implements Runnable {
 			if (value != null) {
 				if (!value.equals(systemButtonPreviousCount)) {
 					systemButtonPreviousCount = value;
-					scriptExecutor.launch(SCROLL_LEDS_SCRIPT, false);
+					scriptExecutor.launch(SCROLL_LEDS_SCRIPT, false, false);
 				}
 			}
 		}
