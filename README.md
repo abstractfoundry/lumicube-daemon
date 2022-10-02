@@ -1,3 +1,5 @@
+![Maven build](https://github.com/abstractfoundry/lumicube-daemon/actions/workflows/maven-package.yml/badge.svg)
+
 # lumicube-daemon
 
 LumiCube service for the Raspberry Pi.
