@@ -13,7 +13,7 @@ import java.nio.file.Files;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-//	Build script:
+//	Build script, linking to libssl1 (for libssl3 use ubuntu:jammy-20220531 instead):
 
 //	#!/bin/bash
 //
