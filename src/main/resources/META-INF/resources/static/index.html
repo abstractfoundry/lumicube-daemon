@@ -116,23 +116,7 @@
                                 ReactBootstrap.Nav, {
                                     activeKey: this.props.active_key,
                                     className: 'ml-auto'
-                                },
-                                // React.createElement(
-                                //     ReactBootstrap.Nav.Item, {},
-                                //     React.createElement(
-                                //         ReactBootstrap.Nav.Link, {
-                                //             href: '/',
-                                //             eventKey: 'dashboard'
-                                //         }, 'Dashboard')
-                                // )
-//                              React.createElement(
-//                                  ReactBootstrap.Nav.Item, {},
-//                                  React.createElement(
-//                                      ReactBootstrap.Nav.Link, {
-//                                          href: '/api/v1/',
-//                                          eventKey: 'about'
-//                                      }, 'API')
-//                              )
+                                }
                             )
                         )
                     )
@@ -364,22 +348,6 @@
                                                     onClick: () => modules.toggle_chart(module_name, key)
                                                 }, chart_visible ? 'Hide chart' : 'Show chart'
                                             )
-//                                            React.createElement(
-//                                                ReactBootstrap.Dropdown.Item, {
-//                                                    // TODO: href: modules.export_data_link(module_name, key)
-//                                                }, 'Export data'
-//                                            ),
-//                                            React.createElement(
-//                                                ReactBootstrap.Dropdown.Item, {
-//                                                    // TODO: onClick: () => modules.add_to_script(module_name, key)
-//                                                }, 'Add to script'
-//                                            ),
-//                                            React.createElement(
-//                                                ReactBootstrap.Dropdown.Item, {}, 'Settings' // TODO
-//                                            ),
-//                                            React.createElement(
-//                                                ReactBootstrap.Dropdown.Item, {}, 'Help' // TODO
-//                                            )
                                         ),
                                         React.createElement(
                                             ReactBootstrap.Form.Control, {
@@ -485,33 +453,9 @@
                             React.createElement(
                                 ReactBootstrap.Card.Header, {
                                     as: 'h5',
-                                    className: 'text-monospace',
-//                                    style: {
-//                                        'position': 'relative',
-//                                        'padding-left': '2.75rem',
-//                                        'padding-right': '0.5rem',
-//                                        'font-size': '1.1rem'
-//                                    }
+                                    className: 'text-monospace'
                                 },
-                                module_name,
-//                                React.createElement(
-//                                    ReactBootstrap.Button, { // TODO: Expand hidden settings section
-//                                        variant: 'secondary',
-//                                        size: 'sm',
-//                                        style: {
-//                                            'position': 'absolute',
-//                                            'top': '0',
-//                                            'left': '0',
-//                                            'height': '100%',
-//                                            'border-bottom-left-radius': '0',
-//                                            'border-bottom-right-radius': '0',
-//                                            'border-top-right-radius': '0',
-//                                            'margin': '0',
-//                                            'padding': '0rem 0.25rem',
-//                                            'font-size': '1.5rem'
-//                                        }
-//                                    }, '⋮'
-//                                )
+                                module_name
                             ),
                             React.createElement(
                                 ReactBootstrap.Card.Body, {},
@@ -645,32 +589,9 @@
                         React.createElement(
                             ReactBootstrap.Card.Header, {
                                 as: 'h5',
-                                className: 'text-monospace',
-//                                style: {
-//                                    'position': 'relative',
-//                                    'padding-left': '2.75rem',
-//                                    'padding-right': '0.5rem'
-//                                }
+                                className: 'text-monospace'
                             },
-                            'main',
-//                            React.createElement(
-//                                ReactBootstrap.Button, { // TODO: Expand hidden settings section
-//                                    variant: 'secondary',
-//                                    size: 'sm',
-//                                    style: {
-//                                        'position': 'absolute',
-//                                        'top': '0',
-//                                        'left': '0',
-//                                        'height': '100%',
-//                                        'border-bottom-left-radius': '0',
-//                                        'border-bottom-right-radius': '0',
-//                                        'border-top-right-radius': '0',
-//                                        'margin': '0',
-//                                        'padding': '0rem 0.25rem',
-//                                        'font-size': '1.5rem'
-//                                    }
-//                                }, '⋮'
-//                            )
+                            'main'
                         ),
                         React.createElement(
                             ReactBootstrap.Card.Body, { style: { 'padding': 0 } },
@@ -729,7 +650,7 @@
                                     variant: 'secondary',
                                     className: 'mt-3 ml-3'
                                 },
-                                'Projects'
+                                'Examples'
                             ),
                             React.createElement(
                                 ReactBootstrap.Dropdown.Menu, {},
@@ -750,6 +671,34 @@
                             )
                         ),
                         React.createElement(
+                            ReactBootstrap.Dropdown, {
+                                className: 'd-inline-block'
+                            },
+                            React.createElement(
+                                ReactBootstrap.Dropdown.Toggle, {
+                                    variant: 'secondary',
+                                    className: 'mt-3 ml-3'
+                                },
+                                'Scripts'
+                            ),
+                            React.createElement(
+                                ReactBootstrap.Dropdown.Menu, {},
+                                ...this.props.scripts.names.map(scriptName =>
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_main_body('print("' + scriptName + '")') }, scriptName)
+                                )
+                            )
+                        ),
+                        React.createElement(
+                            ReactBootstrap.Button, {
+                                variant: 'primary',
+                                className: 'mt-3 ml-3',
+                                onClick: () => {
+                                    alert('TODO');
+                                }
+                            },
+                            'New'
+                        ),
+                        React.createElement(
                             ReactBootstrap.Button, {
                                 variant: 'primary',
                                 className: 'mt-3 ml-3',
@@ -765,7 +714,10 @@
                                             ) + '\r\n\r\n'
                                         }
                                     ).then(
-                                        () => unsaved = false
+                                        () => {
+                                            unsaved = false;
+                                            alert('Script saved.');
+                                        }
                                     );
                                 }
                             },
@@ -1000,6 +952,7 @@
                         )
                     },
                     scripts: {
+                        names: [],
                         main_body: '',
                         update_main_body: (body, check = true) => {
                             let update = false;
@@ -1648,7 +1601,8 @@ Parameters:
                             'json', {}
                         );
                         const python_log = await this.tryGet('/api/v1/scripts/main/log', 'json', { text: '' });
-                        return {modules, fields_latest, fields_timeseries, python_log};
+                        const scripts = await this.tryGet('/api/v1/scripts', 'json', { names: [] });
+                        return {modules, fields_latest, fields_timeseries, python_log, scripts};
                     },
                     (draft, data) => {
                         const sorted_modules = data.modules.names.sort();
@@ -1710,6 +1664,8 @@ Parameters:
                             }
                         }
                         draft.python_log = data.python_log.text;
+                        const sorted_scripts = data.scripts.names.sort();
+                        draft.scripts.names = sorted_scripts;
                     }
                 );
             }
@@ -1748,14 +1704,6 @@ Parameters:
                                         documentation: this.state.documentation
                                     }
                                 )
-//                              React.createElement('h1', { className: 'my-3' }, 'API'),
-//                              React.createElement('p', {}, 'Want to see what\'s under the hood?'),
-//                              React.createElement(
-//                                  ReactBootstrap.Button, {
-//                                      href: '/api/v1/'
-//                                  },
-//                                  'Go explore'
-//                              )
                             )
                         )
                     ),
