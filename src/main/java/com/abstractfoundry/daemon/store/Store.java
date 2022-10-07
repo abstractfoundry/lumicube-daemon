@@ -7,8 +7,15 @@ package com.abstractfoundry.daemon.store;
 import com.abstractfoundry.daemon.bus.Metadata;
 import com.abstractfoundry.daemon.bus.Namespace;
 import com.abstractfoundry.daemon.common.DatabaseException;
+import com.abstractfoundry.daemon.settings.AbstractFoundryDirectory;
 import com.abstractfoundry.daemon.uavcan.NodeInfo;
 import com.redislabs.redistimeseries.RedisTimeSeries;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -122,19 +129,26 @@ public class Store { // TODO: This assumes (correctly, for now) that node IDs ar
 	}
 
 	public String getScriptBody(String name, String otherwise) {
-		try (var jedis = borrowConnection()) {
-			var key = buildScriptBodyKey(name);
-			var body = jedis.get(key);
-			return body != null ? body : otherwise;
+		var daemonScriptsDirectory = AbstractFoundryDirectory.probeDaemonScriptsDirectory();
+		try {
+			var file = new File(daemonScriptsDirectory, name + ".py");
+			return Files.readString(file.toPath(), StandardCharsets.UTF_8);
+		} catch (IOException exception) {
+			logger.info("Script not found: '{}'.", name);
+			return otherwise;
 		}
 	}
 
 	public void putScriptBody(String name, String body) {
 		logger.info("Updating script:\n{}\n", body); // Note: Additionally logging the script ensures that errant saves don't completely destroy the previous script, and can be manually recovered if necessary.
-		try (var jedis = borrowConnection()) {
-			var key = buildScriptBodyKey(name);
-			jedis.set(key, body);
-			jedis.bgsave();
+		var daemonScriptsDirectory = AbstractFoundryDirectory.probeDaemonScriptsDirectory();
+		try {
+			var bytes = body.getBytes(StandardCharsets.UTF_8);
+			var stream = new ByteArrayInputStream(bytes);
+			var file = new File(daemonScriptsDirectory, name + ".py");
+			Files.copy(stream, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		} catch (IOException exception) {
+			throw new RuntimeException("Failed to save script.", exception);
 		}
 	}
 
@@ -223,10 +237,6 @@ public class Store { // TODO: This assumes (correctly, for now) that node IDs ar
 				result.put(field, value);
 			}
 		}
-	}
-
-	private static String buildScriptBodyKey(String name) {
-		return "scripts:body:" + name;
 	}
 
 	private static String buildTimeSeriesKey(UUID uuid, int key) {

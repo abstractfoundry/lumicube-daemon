@@ -28,4 +28,10 @@ public class AbstractFoundryDirectory {
 		return result;
 	}
 
+	public static File probeDaemonScriptsDirectory() {
+		var result = new File(probeDaemonDirectory(), "Scripts");
+		result.mkdirs();
+		return result;
+	}
+
 }

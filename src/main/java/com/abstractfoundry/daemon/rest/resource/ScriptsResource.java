@@ -11,6 +11,7 @@ import com.abstractfoundry.daemon.rest.representation.PythonScriptLog;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.InternalServerErrorException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -52,12 +53,16 @@ public class ScriptsResource {
 	public Response postScript(@Context Store store, @PathParam("scriptName") String scriptName, PythonScript script) {
 		if (scriptName == null) {
 			throw new BadRequestException("Script name is mandatory.");
-		} else if (!scriptName.equals("main")) {
-			throw new NotFoundException("Only one main script is currently supported.");
 		}
 		var body = script.getBody();
-		store.putScriptBody(scriptName, body);
-		return Response.ok().build();
+		try {
+			store.putScriptBody(scriptName, body);
+			return Response.ok().build();
+		} catch (RuntimeException exception) {
+			logger.error("Failed to save script.", exception);
+			store.appendScriptLog("Error: Failed to save script.");
+			throw new InternalServerErrorException("Failed to save script.", exception);
+		}
 	}
 
 	@GET
@@ -65,10 +70,8 @@ public class ScriptsResource {
 	public Response getScriptLog(@Context Store store, @PathParam("scriptName") String scriptName) {
 		if (scriptName == null) {
 			throw new BadRequestException("Script name is mandatory.");
-		} else if (!scriptName.equals("main")) {
-			throw new NotFoundException("Only one main script is currently supported.");
 		}
-		var text = store.getScriptLog();
+		var text = store.getScriptLog(); // TODO: Store separate logs for each script.
 		var result = new PythonScriptLog();
 		result.setText(text);
 		return Response.ok(result).build();
@@ -79,8 +82,6 @@ public class ScriptsResource {
 	public Response startScript(@Context Store store, @Context ScriptExecutor scriptExecutor, @PathParam("scriptName") String scriptName, PythonScript script) {
 		if (scriptName == null) {
 			throw new BadRequestException("Script name is mandatory.");
-		} else if (!scriptName.equals("main")) {
-			throw new NotFoundException("Only one main script is currently supported.");
 		}
 		String body = null;
 		store.clearScriptLog(); // Note: We do this here, so we can prepend any errors saving the script before the messages logged by the script itself.
@@ -89,7 +90,7 @@ public class ScriptsResource {
 			try {
 				store.putScriptBody(scriptName, body);
 			} catch (RuntimeException exception) {
-				logger.warn("Failed to save script.", exception); // TODO: Try again? Putting the script body could fail if Redis is already performing a background save.
+				logger.error("Failed to save script.", exception);
 				store.appendScriptLog("Error: Failed to save script.");
 			}
 		} else {
@@ -102,10 +103,7 @@ public class ScriptsResource {
 	@POST
 	@Path("/{scriptName}/methods/stop")
 	public Response stopScript(@Context Store store, @Context ScriptExecutor scriptExecutor, @PathParam("scriptName") String scriptName) {
-		if (!scriptName.equals("main")) {
-			throw new NotFoundException("Only one main script is currently supported.");
-		}
-		scriptExecutor.terminate();
+		scriptExecutor.terminate(); // TODO: Only stop the given script.
 		return Response.ok().build();
 	}
 

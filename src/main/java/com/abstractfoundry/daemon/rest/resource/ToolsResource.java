@@ -117,7 +117,7 @@ public class ToolsResource {
 		logger.info("Querying latest daemon version.");
 		var baseline = new ComparableVersion(Daemon.DAEMON_VERSION);
 		var latest = queryLatestVersion();
-		logger.info("Current version = {};  Latest version = {}.", baseline, latest);
+		logger.info("Current version = {}; Latest version = {}.", baseline, latest);
 		if (latest.compareTo(baseline) > 0) {
 			return latest;
 		} else {

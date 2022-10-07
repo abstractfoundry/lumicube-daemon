@@ -14,7 +14,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class QueryNodeInfoTask implements Runnable  { // TODO: Update the allocator with the UUIDs associated with previously assigned IDs?
+public class QueryNodeInfoTask implements Runnable { // TODO: Update the allocator with the UUIDs associated with previously assigned IDs?
 
 	private static final Logger logger = LoggerFactory.getLogger(QueryNodeInfoTask.class);
 
