@@ -97,12 +97,6 @@ public class ScriptsResource {
 		store.clearScriptLog(); // Note: We do this here, so we can prepend any errors saving the script before the messages logged by the script itself.
 		if (script != null) {
 			body = script.getBody();
-			try {
-				store.putScriptBody(scriptName, body);
-			} catch (RuntimeException exception) {
-				logger.error("Failed to save script.", exception);
-				store.appendScriptLog("Error: Failed to save script.");
-			}
 		} else {
 			body = store.getScriptBody(scriptName, "");
 		}

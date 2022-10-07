@@ -591,18 +591,18 @@
                                 as: 'h5',
                                 className: 'text-monospace'
                             },
-                            'main'
+                            this.props.scripts.active_name
                         ),
                         React.createElement(
                             ReactBootstrap.Card.Body, { style: { 'padding': 0 } },
                             React.createElement(
                                 AceEditor, {
-                                    value: this.props.scripts.main_body,
+                                    value: this.props.scripts.active_body,
                                     mode: 'ace/mode/python',
                                     theme: 'ace/theme/github',
                                     onChange: value => {
                                         unsaved = true;
-                                        this.props.scripts.update_main_body(value, false);
+                                        this.props.scripts.update_active_body(value);
                                     },
                                     onSelectionChange: session => {
                                         let cursor = session.selection.cursor;
@@ -659,14 +659,14 @@
                                     React.createElement('b', {}, 'Beginner Projects')
                                 ),
                                 ...Object.keys(beginnerProjects).map(projectName =>
-                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_main_body(beginnerProjects[projectName]) }, projectName)
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_active_body(beginnerProjects[projectName]) }, projectName) // TODO: Fresh name.
                                 ),
                                 React.createElement(
                                     ReactBootstrap.Dropdown.Item, {},
                                     React.createElement('b', {}, 'Advanced Projects')
                                 ),
                                 ...Object.keys(advancedProjects).map(projectName =>
-                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_main_body(advancedProjects[projectName]) }, projectName)
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_active_body(advancedProjects[projectName]) }, projectName) // TODO: Fresh name.
                                 )
                             )
                         ),
@@ -684,7 +684,7 @@
                             React.createElement(
                                 ReactBootstrap.Dropdown.Menu, {},
                                 ...this.props.scripts.names.map(scriptName =>
-                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_main_body('print("' + scriptName + '")') }, scriptName)
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_active_body('print("' + scriptName + '")') }, scriptName) // TODO.
                                 )
                             )
                         ),
@@ -703,14 +703,14 @@
                                 variant: 'primary',
                                 className: 'mt-3 ml-3',
                                 onClick: () => {
-                                    fetch('/api/v1/scripts/main',
+                                    fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name),
                                         {
                                             method: 'POST',
                                             headers: {
                                                 'Content-Type': 'application/json'
                                             },
                                             body: JSON.stringify(
-                                                { 'body': this.props.scripts.main_body }
+                                                { 'body': this.props.scripts.active_body }
                                             ) + '\r\n\r\n'
                                         }
                                     ).then(
@@ -728,7 +728,7 @@
                                 variant: 'danger',
                                 className: 'mt-3 ml-3',
                                 onClick: () => {
-                                    fetch('/api/v1/scripts/main/methods/stop',
+                                    fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name) + '/methods/stop',
                                         {
                                             method: 'POST',
                                             headers: {
@@ -748,19 +748,25 @@
                                 variant: 'success',
                                 className: 'mt-3 ml-3',
                                 onClick: () => {
-                                    fetch('/api/v1/scripts/main/methods/start',
-                                        {
-                                            method: 'POST',
-                                            headers: {
-                                                'Content-Type': 'application/json'
-                                            },
-                                            body: JSON.stringify(
-                                                { 'body': this.props.scripts.main_body }
-                                            ) + '\r\n\r\n'
-                                        }
-                                    ).then(
-                                        () => unsaved = false
-                                    );
+                                    const body = this.props.scripts.active_body;
+                                    const post = {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify(
+                                            { 'body': body }
+                                        ) + '\r\n\r\n'
+                                    };
+                                    const example_code =
+                                        Object.values(beginnerProjects).includes(body) ||
+                                        Object.values(advancedProjects).includes(body);
+                                    if (!example_code) {
+                                        fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name), post).then( // Save it automatically.
+                                            () => unsaved = false
+                                        );
+                                    }
+                                    fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name) + '/methods/start', post);
                                 }
                             },
                             'Start'
@@ -953,23 +959,17 @@
                     },
                     scripts: {
                         names: [],
-                        main_body: '',
-                        update_main_body: (body, check = true) => {
-                            let update = false;
-                            if (check) {
-                                let overwritten = this.state.scripts.main_body;
-                                let safe = overwritten.trim().length === 0 ||
-                                    Object.values(beginnerProjects).includes(overwritten) ||
-                                    Object.values(advancedProjects).includes(overwritten); // TODO: Do this check in a less hacky way
-                                update = safe || window.confirm("Loading this project will overwrite your current script.");
-                            } else {
-                                update = true;
-                            }
-                            if (update) {
-                                this.transformState(
-                                    draft => { draft.scripts.main_body = body; }
-                                );
-                            }
+                        active_name: 'main',
+                        active_body: '',
+                        update_active_name: (name) => {
+                            this.transformState(
+                                draft => { draft.scripts.active_name = name; }
+                            );
+                        },
+                        update_active_body: (body) => {
+                            this.transformState(
+                                draft => { draft.scripts.active_body = body; }
+                            );
                         }
                     },
                     python_log: '',
@@ -1459,11 +1459,11 @@ Parameters:
             oneShot() {
                 this.transformState(
                     async (state) => {
-                        const main_script = await this.tryGet('/api/v1/scripts/main', 'json', { body: '' });
-                        return {main_script};
+                        const active_script = await this.tryGet('/api/v1/scripts/' + encodeURIComponent(this.state.scripts.active_name), 'json', { body: '' });
+                        return {active_script};
                     },
                     (draft, data) => {
-                        draft.scripts.main_body = data.main_script.body;
+                        draft.scripts.active_body = data.active_script.body;
                     }
                 );
                 this.transformState( // Note: Check for upgrades separately from fetching the main body, since it could take some time.
@@ -1600,7 +1600,7 @@ Parameters:
                             module_name_and_field_key => '/api/v1/modules/' + module_name_and_field_key[0] + '/fields/' + module_name_and_field_key[1] + '/timeseries',
                             'json', {}
                         );
-                        const python_log = await this.tryGet('/api/v1/scripts/main/log', 'json', { text: '' });
+                        const python_log = await this.tryGet('/api/v1/scripts/' + encodeURIComponent(this.state.scripts.active_name) + '/log', 'json', { text: '' });
                         const scripts = await this.tryGet('/api/v1/scripts', 'json', { names: [] });
                         return {modules, fields_latest, fields_timeseries, python_log, scripts};
                     },
