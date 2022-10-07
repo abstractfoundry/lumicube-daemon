@@ -582,6 +582,35 @@
 
         class Scripts extends React.Component {
             render() {
+                let loadExample = (name, body) => {
+                    let index = 1, newName;
+                    do {
+                        newName = name + (index > 1 ? " " + index.toString() : "");
+                        index += 1;
+                    } while (this.props.scripts.names.includes(newName));
+                    this.props.scripts.update_active(newName, body);
+                    unsaved = false;
+                };
+                let autoSave = () => {
+                    const isExampleCode =
+                        Object.values(beginnerProjects).includes(this.props.scripts.active_body) ||
+                        Object.values(advancedProjects).includes(this.props.scripts.active_body);
+                    if (!isExampleCode) {
+                        fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name),
+                            {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(
+                                    { 'body': this.props.scripts.active_body }
+                                ) + '\r\n\r\n'
+                            }
+                        ).then(
+                            () => unsaved = false
+                        );
+                    }
+                }
                 return React.createElement(
                     React.Fragment, {},
                     React.createElement(
@@ -658,15 +687,15 @@
                                     ReactBootstrap.Dropdown.Item, {},
                                     React.createElement('b', {}, 'Beginner Projects')
                                 ),
-                                ...Object.keys(beginnerProjects).map(projectName =>
-                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_active_body(beginnerProjects[projectName]) }, projectName) // TODO: Fresh name.
+                                ...Object.keys(beginnerProjects).map(name =>
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => { autoSave(); loadExample(name, beginnerProjects[name]); } }, name)
                                 ),
                                 React.createElement(
                                     ReactBootstrap.Dropdown.Item, {},
                                     React.createElement('b', {}, 'Advanced Projects')
                                 ),
-                                ...Object.keys(advancedProjects).map(projectName =>
-                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_active_body(advancedProjects[projectName]) }, projectName) // TODO: Fresh name.
+                                ...Object.keys(advancedProjects).map(name =>
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => { autoSave(); loadExample(name, advancedProjects[name]); } }, name)
                                 )
                             )
                         ),
@@ -683,8 +712,20 @@
                             ),
                             React.createElement(
                                 ReactBootstrap.Dropdown.Menu, {},
-                                ...this.props.scripts.names.map(scriptName =>
-                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () => this.props.scripts.update_active_body('print("' + scriptName + '")') }, scriptName) // TODO.
+                                ...this.props.scripts.names.map(name =>
+                                    React.createElement(ReactBootstrap.Dropdown.Item, { onClick: () =>
+                                        {
+                                            autoSave();
+                                            fetch('/api/v1/scripts/' + encodeURIComponent(name))
+                                                .then(response => response.json())
+                                                .then(json =>
+                                                    {
+                                                        this.props.scripts.update_active(name, json.body);
+                                                        unsaved = false;
+                                                    }
+                                                );
+                                        }
+                                    }, name)
                                 )
                             )
                         ),
@@ -693,7 +734,12 @@
                                 variant: 'primary',
                                 className: 'mt-3 ml-3',
                                 onClick: () => {
-                                    alert('TODO');
+                                    autoSave();
+                                    let name = prompt("Script name:");
+                                    if (name !== null && name.length > 0) {
+                                        this.props.scripts.update_active(name, '');
+                                        unsaved = false;
+                                    }
                                 }
                             },
                             'New'
@@ -748,25 +794,18 @@
                                 variant: 'success',
                                 className: 'mt-3 ml-3',
                                 onClick: () => {
-                                    const body = this.props.scripts.active_body;
-                                    const post = {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json'
-                                        },
-                                        body: JSON.stringify(
-                                            { 'body': body }
-                                        ) + '\r\n\r\n'
-                                    };
-                                    const example_code =
-                                        Object.values(beginnerProjects).includes(body) ||
-                                        Object.values(advancedProjects).includes(body);
-                                    if (!example_code) {
-                                        fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name), post).then( // Save it automatically.
-                                            () => unsaved = false
-                                        );
-                                    }
-                                    fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name) + '/methods/start', post);
+                                    autoSave();
+                                    fetch('/api/v1/scripts/' + encodeURIComponent(this.props.scripts.active_name) + '/methods/start',
+                                        {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify(
+                                                { 'body': this.props.scripts.active_body }
+                                            ) + '\r\n\r\n'
+                                        }
+                                    );
                                 }
                             },
                             'Start'
@@ -961,14 +1000,14 @@
                         names: [],
                         active_name: 'main',
                         active_body: '',
-                        update_active_name: (name) => {
-                            this.transformState(
-                                draft => { draft.scripts.active_name = name; }
-                            );
-                        },
                         update_active_body: (body) => {
                             this.transformState(
                                 draft => { draft.scripts.active_body = body; }
+                            );
+                        },
+                        update_active: (name, body) => {
+                            this.transformState(
+                                draft => { draft.scripts.active_name = name; draft.scripts.active_body = body; }
                             );
                         }
                     },
