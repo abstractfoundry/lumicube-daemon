@@ -6,8 +6,9 @@ package com.abstractfoundry.daemon.rest.resource;
 
 import com.abstractfoundry.daemon.script.ScriptExecutor;
 import com.abstractfoundry.daemon.store.Store;
-import com.abstractfoundry.daemon.rest.representation.PythonScript;
-import com.abstractfoundry.daemon.rest.representation.PythonScriptLog;
+import com.abstractfoundry.daemon.rest.representation.PythonScriptRepresentation;
+import com.abstractfoundry.daemon.rest.representation.PythonScriptLogRepresentation;
+import com.abstractfoundry.daemon.rest.representation.PythonScriptsRepresentation;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -20,6 +21,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.ArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +33,15 @@ public class ScriptsResource {
 	private static final Logger logger = LoggerFactory.getLogger(ScriptsResource.class);
 
 	// TODO: On error return JSON { "error": ... }.
-
+	
+	@GET
+	public Response getScripts(@Context Store store) {
+		var result = new PythonScriptsRepresentation();
+		var names = store.getScriptNames();
+		result.setNames(new ArrayList<>(names));
+		return Response.ok(result).build();
+	}
+	
 	@GET
 	@Path("/{scriptName}")
 	public Response getScript(@Context Store store, @PathParam("scriptName") String scriptName) {
@@ -40,7 +50,7 @@ public class ScriptsResource {
 		}
 		var body = store.getScriptBody(scriptName, null);
 		if (body != null) {
-			var result = new PythonScript();
+			var result = new PythonScriptRepresentation();
 			result.setBody(body);
 			return Response.ok(result).build();
 		} else {
@@ -50,7 +60,7 @@ public class ScriptsResource {
 
 	@POST
 	@Path("/{scriptName}")
-	public Response postScript(@Context Store store, @PathParam("scriptName") String scriptName, PythonScript script) {
+	public Response postScript(@Context Store store, @PathParam("scriptName") String scriptName, PythonScriptRepresentation script) {
 		if (scriptName == null) {
 			throw new BadRequestException("Script name is mandatory.");
 		}
@@ -72,14 +82,14 @@ public class ScriptsResource {
 			throw new BadRequestException("Script name is mandatory.");
 		}
 		var text = store.getScriptLog(); // TODO: Store separate logs for each script.
-		var result = new PythonScriptLog();
+		var result = new PythonScriptLogRepresentation();
 		result.setText(text);
 		return Response.ok(result).build();
 	}
 	
 	@POST
 	@Path("/{scriptName}/methods/start")
-	public Response startScript(@Context Store store, @Context ScriptExecutor scriptExecutor, @PathParam("scriptName") String scriptName, PythonScript script) {
+	public Response startScript(@Context Store store, @Context ScriptExecutor scriptExecutor, @PathParam("scriptName") String scriptName, PythonScriptRepresentation script) {
 		if (scriptName == null) {
 			throw new BadRequestException("Script name is mandatory.");
 		}

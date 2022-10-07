@@ -4,7 +4,7 @@
 
 package com.abstractfoundry.daemon.rest.representation;
 
-public class PythonScriptLog {
+public class PythonScriptLogRepresentation {
 
 	private String text;
 

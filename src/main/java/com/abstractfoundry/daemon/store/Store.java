@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -126,6 +128,19 @@ public class Store { // TODO: This assumes (correctly, for now) that node IDs ar
 	public synchronized UUID getUuid(int id) {
 		var info = getNodeInfo(id);
 		return info != null ? info.getUuid() : null;
+	}
+
+	public Set<String> getScriptNames() {
+		var daemonScriptsDirectory = AbstractFoundryDirectory.probeDaemonScriptsDirectory();
+		var result = new HashSet<String>();
+		for (var file : daemonScriptsDirectory.listFiles()) {
+			var filename = file.getName();
+			if (filename.endsWith(".py")) {
+				var name = filename.substring(0, filename.length() - 3); // Chop of the ".py" extension.
+				result.add(name);
+			}
+		}
+		return result;
 	}
 
 	public String getScriptBody(String name, String otherwise) {

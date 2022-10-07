@@ -4,7 +4,7 @@
 
 package com.abstractfoundry.daemon.rest.representation;
 
-public class PythonScript {
+public class PythonScriptRepresentation {
 
 	private String body;
 
