@@ -222,6 +222,6 @@
 		<junit-jupiter.version>5.9.1</junit-jupiter.version>
 		<jetty.version>11.0.12</jetty.version>
 		<jersey.version>3.0.8</jersey.version>
-		<jackson.version>2.13.4</jackson.version>
+		<jackson.version>2.13.4.1</jackson.version>
 	</properties>
 </project>
