@@ -36,7 +36,7 @@ def platform_variant():
 
 
 def install_system_dependencies():
-    print('Installing system dependencies...')
+    print('Installing system dependencies...', flush=True)
 
     apt_packages = ['curl', 'unzip', 'libfuse2', 'iptables', 'python3', 'python3-pip']
     pip_packages = ['flask==2.1.2', 'waitress==2.1.1']
@@ -47,7 +47,7 @@ def install_system_dependencies():
 
 
 def configure_serial_port():
-    print('Configuring the serial interface...')
+    print('Configuring the serial interface...', flush=True)
 
     if shutil.which('raspi-config') is not None:
         run('sudo raspi-config nonint do_serial 2')  # Enable UART, but disable serial login shell.
@@ -61,7 +61,7 @@ fi
 
 
 def install_daemon():
-    print('Installing the Abstract Foundry Daemon...')
+    print('Installing the Abstract Foundry Daemon...', flush=True)
 
     home = os.path.expanduser('~')
     daemon_directory = os.path.join(home, 'AbstractFoundry', 'Daemon')
@@ -119,7 +119,7 @@ WantedBy=default.target
 
 
 def configure_iptables_rules():
-    print('Configuring iptables rules...')
+    print('Configuring iptables rules...', flush=True)
 
     run('sudo systemctl stop foundry-redirect.service', check=False, quiet=True)
     run('sudo systemctl disable foundry-redirect.service', check=False, quiet=True)
@@ -150,7 +150,7 @@ EOF
 
 
 def install_addon_packages():
-    print('Installing addon packages...')
+    print('Installing addon packages...', flush=True)
 
     apt_packages = ['python3-cffi', 'python3-numpy', 'python3-requests', 'python3-matplotlib', 'ffmpeg', 'espeak']
     pip_packages = ['pyalsaaudio==0.9.0', 'pyttsx3==2.90', 'precise-runner==0.3.1', 'vosk==0.3.32']
@@ -207,6 +207,6 @@ install_addon_packages()
 
 print('----------------------')
 print('Installation complete.')
-print('----------------------')
+print('----------------------', flush=True)
 input('Press enter to reboot your system now...\n')
 run('sudo /usr/sbin/reboot')
